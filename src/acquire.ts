@@ -251,7 +251,10 @@ async function ensureAllowed(env: Env, doc: DocumentConfig) {
   let verdict = row?.robots_verdict as RobotsVerdict | undefined
   if (stale || verdict === 'UNKNOWN') {
     verdict = await robotsVerdict(env, doc.canonicalUrl)
-    if (doc.history && verdict === 'ALLOWED') verdict = await robotsVerdict(env, doc.history.indexUrl)
+    // 이력 인덱스와 과거 본문이 다른 호스트에 있을 수 있다 (리디: ridibooks.com → policy.ridi.com).
+    // 실제로 가져올 모든 호스트를 각각 판정한다 (§16.1).
+    for (const url of doc.history ? [doc.history.indexUrl, doc.history.urlTemplate.replace('{key}', 'v1')] : [])
+      if (verdict === 'ALLOWED') verdict = await robotsVerdict(env, url)
     await updateDocument(env, doc.id, { robots_verdict: verdict, robots_checked_at: now(), ...(verdict === 'DISALLOWED' ? { status: 'BLOCKED', blocker_type: 'ROBOTS' } : {}) })
   }
   if (verdict !== 'ALLOWED') throw new Error(`ROBOTS_${verdict}`)
@@ -268,4 +271,77 @@ export async function runScheduled(env: Env) {
     results[doc.id] = await poll(env, doc.id)
   }
   return results
+}
+
+// ── 후보 탐색 (§16.1) ────────────────────────────────────────
+// 새 문서를 카탈로그에 넣기 전에 robots 를 먼저 보고, 허용된 경우에만 본문을 확인한다.
+// 차단이면 그 사실만 돌려주고 페이지는 건드리지 않는다.
+
+const POLICY_LINK = /이용\s*약관|서비스\s*약관|개인정보\s*(처리|취급)?\s*방침|privacy|terms|policy/i
+const CANDIDATE_SELECTORS = ['main', 'article', 'div#content', 'div#container', 'div.content', 'div.policy', 'section', 'body']
+
+export interface LinkCandidate { url: string; text: string; type: 'TERMS' | 'PRIVACY' | 'UNKNOWN' }
+
+/** 홈페이지에서 약관·처리방침으로 보이는 링크를 긁는다. 다른 호스트로 넘어가는 링크도 포함한다. */
+export async function discover(env: Env, pageUrl: string): Promise<{ robots: RobotsVerdict; status?: number; links: LinkCandidate[] }> {
+  const robots = await robotsVerdict(env, pageUrl)
+  if (robots !== 'ALLOWED') return { robots, links: [] }
+  const { status, html, finalUrl } = await fetchDocument(env, pageUrl)
+  const links: LinkCandidate[] = []
+  const seen = new Set<string>()
+  for (const m of html.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]{0,200}?)<\/a>/gi)) {
+    const text = m[2].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+    if (!POLICY_LINK.test(text) && !POLICY_LINK.test(m[1])) continue
+    let url: string
+    try { url = new URL(m[1], finalUrl).toString() } catch { continue }
+    if (!url.startsWith('https://') || seen.has(url)) continue
+    seen.add(url)
+    const t = text + ' ' + url
+    links.push({ url, text: text.slice(0, 60), type: /개인정보|privacy/i.test(t) ? 'PRIVACY' : /약관|terms/i.test(t) ? 'TERMS' : 'UNKNOWN' })
+  }
+  return { robots, status, links }
+}
+
+export interface ProbeResult {
+  url: string
+  robots: RobotsVerdict
+  status?: number
+  best?: { selector: string; textLength: number; sections: number; tables: number; effectiveAt?: string; gate: string }
+  tried?: { selector: string; textLength: number; sections: number; gate: string }[]
+  historyHint?: string
+  error?: string
+}
+
+/** 후보 URL 한 개를 실제 파이프라인으로 재본다. 셀렉터는 여러 개 시도하고 가장 나은 것을 고른다. */
+export async function probe(env: Env, url: string, selectors = CANDIDATE_SELECTORS): Promise<ProbeResult> {
+  const robots = await robotsVerdict(env, url)
+  if (robots !== 'ALLOWED') return { url, robots }
+  let status: number, html: string
+  try { ({ status, html } = await fetchDocument(env, url)) } catch (e) { return { url, robots, error: String(e) } }
+  if (status !== 200) return { url, robots, status }
+
+  const tried: NonNullable<ProbeResult['tried']> = []
+  let best: ProbeResult['best']
+  for (const selector of selectors) {
+    const e = await extract(html, selector, ['nav', 'header', 'footer', 'aside', 'script', 'style', 'button', 'svg', 'select'])
+    const text = normalize(e.text)
+    const g = gate(text)
+    const sections = sectionsOf(text).length
+    tried.push({ selector, textLength: text.length, sections, gate: g.ok ? 'ok' : g.reason })
+    if (!g.ok) continue
+    // 조문이 잡히고 짧은 쪽이 낫다 — body 는 언제나 통과하지만 네비게이션까지 함께 들어온다.
+    const better = !best || sections > best.sections || (sections === best.sections && text.length < best.textLength)
+    if (better) best = { selector, textLength: text.length, sections, tables: e.tables.length, effectiveAt: extractDates(text).effectiveAt, gate: 'ok' }
+  }
+  return { url, robots, status, best, tried, historyHint: historyHint(html) }
+}
+
+/** 공식 이력이 있을 법한 흔적. 실제 하베스터는 사람이 보고 붙인다. */
+function historyHint(html: string): string {
+  const opts = (html.match(/<option[^>]*>[^<]*20\d{2}[^<]*</g) ?? []).length
+  const dated = new Set((html.match(/href="[^"]*(?:20\d{2}[-.]?\d{2}[-.]?\d{2}|version=|prev|history)[^"]*"/gi) ?? []).map((s) => s.slice(0, 80)))
+  const hints: string[] = []
+  if (opts >= 3) hints.push(`날짜 option ${opts}개`)
+  if (dated.size >= 3) hints.push(`버전 링크 후보 ${dated.size}개`)
+  return hints.join(' · ')
 }

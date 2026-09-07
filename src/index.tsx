@@ -4,7 +4,7 @@ import { DOCUMENTS } from './documents'
 import { type Env, syncDocuments, listDocuments, getDocument, listVersions, getVersion, getChange, listChangesForDocument, recentChanges, versionCounts, updateDocument, now } from './db'
 import { sectionsOf } from './normalize'
 import { shapeVersion, excerpt } from './public'
-import { backfill, poll, runScheduled, rebuildChanges } from './acquire'
+import { backfill, poll, runScheduled, rebuildChanges, discover, probe } from './acquire'
 import { Layout, Home, DocumentPage, VersionPage, ChangePage, BotPage, AdminPage } from './views'
 
 const app = new Hono<{ Bindings: Env }>()
@@ -113,6 +113,18 @@ admin.post('/reparse/:id', async (c) => {
   await c.env.DB.prepare('DELETE FROM changes WHERE document_id = ?').bind(id).run()
   await rebuildChanges(c.env, id, 'BACKFILL')
   return c.json({ id, rebuilt: true })
+})
+// 카탈로그를 넓힐 때 쓴다. robots 를 먼저 보고 허용된 경우에만 본문을 만진다 (§16.1).
+admin.get('/discover', async (c) => {
+  const url = c.req.query('url')
+  if (!url) return c.json({ error: 'url required' }, 400)
+  try { return c.json(await discover(c.env, url)) } catch (e) { return c.json({ error: String(e) }, 400) }
+})
+admin.get('/probe', async (c) => {
+  const url = c.req.query('url')
+  if (!url) return c.json({ error: 'url required' }, 400)
+  const sel = c.req.query('selectors')?.split(',').filter(Boolean)
+  try { return c.json(await probe(c.env, url, sel)) } catch (e) { return c.json({ error: String(e) }, 400) }
 })
 admin.post('/poll/:id', async (c) => { await syncDocuments(c.env); return c.json(await poll(c.env, c.req.param('id'))) })
 admin.post('/run', async (c) => { await syncDocuments(c.env); return c.json(await runScheduled(c.env)) })

@@ -44,7 +44,9 @@ export async function syncDocuments(env: Env, docs: DocumentConfig[] = DOCUMENTS
 }
 
 export const listDocuments = (env: Env) =>
-  env.DB.prepare('SELECT * FROM documents ORDER BY service_name, type').all<DocumentRow>().then((r) => r.results)
+  env.DB.prepare(`SELECT * FROM documents
+    ORDER BY CASE status WHEN 'ACTIVE' THEN 0 WHEN 'PENDING_RENDER' THEN 1 ELSE 2 END, service_name, type`)
+    .all<DocumentRow>().then((r) => r.results)
 
 export const getDocument = (env: Env, id: string) =>
   env.DB.prepare('SELECT * FROM documents WHERE id = ?').bind(id).first<DocumentRow>()

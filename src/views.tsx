@@ -14,7 +14,7 @@ main{max-width:920px;margin:0 auto;padding:24px 16px 64px}
 header.top{border-bottom:1px solid var(--line)}header.top div{max-width:920px;margin:0 auto;padding:12px 16px;display:flex;gap:16px;align-items:baseline}
 header.top a{color:inherit;text-decoration:none}header.top .brand{font-weight:800;letter-spacing:-.02em}
 a{color:#0b57d0}.muted{color:var(--muted)}small,.small{font-size:13px}
-table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+table{border-collapse:collapse;width:100%}th{white-space:nowrap}th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}
 .badge{display:inline-block;font-size:12px;padding:1px 8px;border-radius:10px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
 .badge.ok{border-color:#2e7d32;color:#2e7d32}.badge.blocked{border-color:var(--hi);color:var(--hi)}.badge.pending{border-color:var(--mid);color:var(--mid)}
 .imp{font-weight:700}.imp.hi{color:var(--hi)}.imp.mid{color:var(--mid)}
@@ -41,10 +41,12 @@ export const Layout: FC<PropsWithChildren<{ title: string; siteUrl: string; feed
   </html>
 )
 
+const BLOCKER_LABEL: Record<string, string> = { ROBOTS: 'robots.txt', WAF: '봇 차단', DOCUMENT_ABSENT: '문서 못 찾음' }
+
 export const Badge: FC<{ d: Pick<DocumentRow, 'status' | 'blocker_type'> }> = ({ d }) =>
   d.status === 'ACTIVE' ? <span class="badge ok">수집 중</span>
   : d.status === 'PENDING_RENDER' ? <span class="badge pending">수집 준비 중</span>
-  : <span class="badge blocked">수집 불가 · {d.blocker_type === 'WAF' ? '봇 차단' : 'robots.txt'}</span>
+  : <span class="badge blocked">수집 불가 · {BLOCKER_LABEL[d.blocker_type] ?? d.blocker_type}</span>
 
 export const Provenance: FC<{ p: string }> = ({ p }) => (
   <span class="badge">{p === 'OFFICIAL_HISTORY' ? '서비스가 공식 공개한 이력' : p === 'SELF_FETCH' ? 'POLICYLOG가 직접 수집' : p}</span>
@@ -60,6 +62,10 @@ const CAT: Record<string, string> = {
   DATA_COLLECTION: '수집 항목', SECURITY: '보안', ACCOUNT: '계정', OTHER: '기타',
 }
 export const cat = (c: string) => CAT[c] ?? c
+
+/** 분류가 열 개씩 붙으면 읽히지 않는다. 앞의 넷만 보이고 나머지는 수만 알린다. */
+export const catList = (cs: string[], max = 4) =>
+  cs.slice(0, max).map(cat).join(', ') + (cs.length > max ? ` 외 ${cs.length - max}` : '')
 
 /** 감지 시각의 정직한 표기 (§76). 시행일이 있으면 그것이 우선. */
 export function windowLabel(start: string | null, end: string, effectiveAt: string | null): string {
@@ -83,12 +89,19 @@ export const Home: FC<{ docs: DocumentRow[]; counts: Map<string, { n: number; ol
         <tr>
           <td><a href={`/changes/${c.id}`}>{c.title}</a>{c.suppressed_reason === 'BACKFILL' && <span class="badge">이력 백필</span>}</td>
           <td><Importance n={c.importance} /></td>
-          <td class="small">{(JSON.parse(c.categories) as string[]).map(cat).join(', ')}</td>
+          <td class="small">{catList(JSON.parse(c.categories) as string[])}</td>
           <td class="small">{c.effective_at ? `시행 ${c.effective_at}` : windowLabel(c.detection_window_start, c.detection_window_end, null)}</td>
         </tr>
       ))}
     </tbody></table></div>
-    <h2>문서 카탈로그</h2>
+    <h2>문서 카탈로그 · {docs.length}건</h2>
+    <p class="small muted">
+      수집 중 {docs.filter((d) => d.status === 'ACTIVE').length} ·
+      수집 준비 중 {docs.filter((d) => d.status === 'PENDING_RENDER').length} ·
+      수집 불가 {docs.filter((d) => d.status === 'BLOCKED').length}
+      {' '}— 보존 버전 {[...counts.values()].reduce((n, c) => n + c.n, 0)}개.
+      수집 불가는 서비스가 거부한 것이고, 우회하지 않습니다.
+    </p>
     <div class="wrap"><table><thead><tr><th>서비스</th><th>문서</th><th>상태</th><th>보존 버전</th></tr></thead><tbody>
       {docs.map((d) => {
         const c = counts.get(d.id)
