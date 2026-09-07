@@ -1,13 +1,29 @@
 import { Hono } from 'hono'
 import { basicAuth } from 'hono/basic-auth'
+import { getCookie, setCookie } from 'hono/cookie'
 import { DOCUMENTS } from './documents'
-import { type Env, syncDocuments, listDocuments, getDocument, listVersions, getVersion, getChange, listChangesForDocument, recentChanges, versionCounts, updateDocument, now } from './db'
+import { type Env, syncDocuments, listDocuments, getDocument, listVersions, getVersion, getChange, listChangesForDocument, recentChanges, versionCounts, updateDocument, now,
+  latestChanges, countChanges, weeklyViews, recordView } from './db'
 import { sectionsOf } from './normalize'
 import { shapeVersion, excerpt } from './public'
 import { backfill, poll, runScheduled, rebuildChanges, discover, probe } from './acquire'
-import { Layout, Home, DocumentPage, VersionPage, ChangePage, BotPage, AdminPage } from './views'
+import { rankFeatured, matchDocuments } from './rank'
+import { withDb, dbOf } from './sql'
+import { Layout, Home, IntroPage, SearchPage, ChangesPage, DocumentPage, VersionPage, ChangePage, BotPage, NotFoundPage, AdminPage } from './views'
 
 const app = new Hono<{ Bindings: Env }>()
+
+// 요청 하나가 DB 연결 하나를 쓴다. Workers 는 요청을 넘어 소켓을 못 쓰므로 여기서 열고 응답 뒤에 닫는다 (src/sql.ts).
+app.use('*', (c, next) => withDb(c.env, () => next()))
+
+/** 스플래시를 한 번 본 방문자에게 다시 보이지 않게 하는 쿠키. 값 하나뿐이고 누구인지 식별하지 않는다. */
+export const INTRO_COOKIE = 'pl_intro'
+
+/** 홈과 검색이 함께 쓰는 신호. 공개 억제된 문서는 여기서 걸러진다. */
+async function catalog(env: Env) {
+  const [docs, counts, latest, views] = await Promise.all([listDocuments(env), versionCounts(env), latestChanges(env), weeklyViews(env)])
+  return { docs: docs.filter((d) => !d.publication_suppressed), signals: { counts, latest, views } }
+}
 
 // 공개 문서만. 게시 억제(테이크다운)된 문서는 존재하지 않는 것처럼 404.
 async function publicDoc(env: Env, id: string) {
@@ -16,17 +32,42 @@ async function publicDoc(env: Env, id: string) {
 }
 
 // ── 공개 페이지 ────────────────────────────────────────────────
+// 홈. 상단은 검색과 이번 주 조회 상위 세 장, 하단은 나머지 문서의 그리드.
+// 첫 방문(쿠키 없음)이면 소개 스플래시가 위를 덮는다 — 서버가 결정하므로 깜빡임이 없다.
 app.get('/', async (c) => {
-  const [docs, counts, changes] = await Promise.all([listDocuments(c.env), versionCounts(c.env), recentChanges(c.env)])
-  return c.html(<Layout title="약관 변경 이력" siteUrl={c.env.SITE_URL}><Home docs={docs.filter((d) => !d.publication_suppressed)} counts={counts} changes={changes} /></Layout>)
+  const [{ docs, signals }, total] = await Promise.all([catalog(c.env), countChanges(c.env)])
+  const showIntro = getCookie(c, INTRO_COOKIE) !== '1'
+  return c.html(<Layout title="약관 변경 이력" siteUrl={c.env.SITE_URL} path="/"><Home docs={docs} signals={signals} featured={rankFeatured(docs, signals)} total={total} showIntro={showIntro} /></Layout>)
 })
 
-app.get('/bot', (c) => c.html(<Layout title="수집 정책" siteUrl={c.env.SITE_URL}><BotPage ua={c.env.USER_AGENT} contact={c.env.CONTACT_EMAIL} robotsMode={c.env.ROBOTS_MODE ?? 'ENFORCE'} /></Layout>))
+app.get('/intro', (c) => c.html(<Layout title="소개" siteUrl={c.env.SITE_URL} path="/intro"><IntroPage /></Layout>))
 
+// 스플래시의 "시작하기". JS 가 없어도 여기로 와서 쿠키를 받고 홈으로 돌아간다.
+app.get('/start', (c) => {
+  setCookie(c, INTRO_COOKIE, '1', { path: '/', maxAge: 60 * 60 * 24 * 365, sameSite: 'Lax' })
+  return c.redirect('/', 302)
+})
+
+// 서버 검색. 홈의 검색창이 JS 없이 제출되면 여기로 온다. 규칙은 홈의 즉시 거르기와 같다 (src/rank.ts).
+app.get('/search', async (c) => {
+  const q = (c.req.query('q') ?? '').trim().slice(0, 80)
+  if (!q) return c.redirect('/', 302)
+  const { docs, signals } = await catalog(c.env)
+  return c.html(<Layout title={`${q} 검색`} siteUrl={c.env.SITE_URL} path="/search"><SearchPage q={q} docs={matchDocuments(docs, q)} signals={signals} /></Layout>)
+})
+
+app.get('/changes', async (c) => {
+  const changes = await recentChanges(c.env, 100)
+  return c.html(<Layout title="변경 기록" siteUrl={c.env.SITE_URL} path="/changes"><ChangesPage changes={changes} /></Layout>)
+})
+
+app.get('/bot', (c) => c.html(<Layout title="수집 정책" siteUrl={c.env.SITE_URL} path="/bot"><BotPage ua={c.env.USER_AGENT} contact={c.env.CONTACT_EMAIL} robotsMode={c.env.ROBOTS_MODE ?? 'ENFORCE'} /></Layout>))
+
+// 문서·버전·변경 화면은 조회로 센다. 집계는 "이번 주 조회 상위 기업" 에만 쓰고, 누가 봤는지는 남기지 않는다.
 app.get('/policies/:id', async (c) => {
   const d = await publicDoc(c.env, c.req.param('id'))
   if (!d) return c.notFound()
-  const [versions, changes] = await Promise.all([listVersions(c.env, d.id), listChangesForDocument(c.env, d.id)])
+  const [versions, changes] = await Promise.all([listVersions(c.env, d.id), listChangesForDocument(c.env, d.id), recordView(c.env, d.id)])
   return c.html(<Layout title={d.title} siteUrl={c.env.SITE_URL} feed={`/policies/${d.id}/feed.xml`}><DocumentPage d={d} versions={versions} changes={changes} /></Layout>)
 })
 
@@ -34,6 +75,7 @@ app.get('/policies/:id/versions/:vid', async (c) => {
   const d = await publicDoc(c.env, c.req.param('id'))
   const v = await getVersion(c.env, c.req.param('vid'))
   if (!d || !v || v.document_id !== d.id) return c.notFound()
+  await recordView(c.env, d.id)
   return c.html(<Layout title={`${d.title} ${v.effective_at ?? ''}`} siteUrl={c.env.SITE_URL}><VersionPage d={d} v={shapeVersion(v, sectionsOf(v.normalized_text))} /></Layout>)
 })
 
@@ -42,7 +84,7 @@ app.get('/changes/:id', async (c) => {
   if (!ch) return c.notFound()
   const d = await publicDoc(c.env, ch.document_id)
   if (!d) return c.notFound()
-  const [from, to] = await Promise.all([getVersion(c.env, ch.from_version_id), getVersion(c.env, ch.to_version_id)])
+  const [from, to] = await Promise.all([getVersion(c.env, ch.from_version_id), getVersion(c.env, ch.to_version_id), recordView(c.env, d.id)])
   if (!from || !to) return c.notFound()
   return c.html(<Layout title={`${d.title} 변경`} siteUrl={c.env.SITE_URL}><ChangePage d={d} c={ch} from={from} to={to} /></Layout>)
 })
@@ -110,7 +152,7 @@ admin.post('/backfill/:id', async (c) => {
 // changes 는 versions 에서 파생된 데이터다. 분류 규칙이나 파서를 고치면 다시 만든다 (버전은 그대로).
 admin.post('/reparse/:id', async (c) => {
   const id = c.req.param('id')
-  await c.env.DB.prepare('DELETE FROM changes WHERE document_id = ?').bind(id).run()
+  await dbOf(c.env).run('DELETE FROM changes WHERE document_id = ?', [id])
   await rebuildChanges(c.env, id, 'BACKFILL')
   return c.json({ id, rebuilt: true })
 })
@@ -141,12 +183,12 @@ admin.post('/suppress/:id', async (c) => {
 })
 app.route('/admin', admin)
 
-app.notFound((c) => c.html(<Layout title="없는 페이지" siteUrl={c.env.SITE_URL}><h1>페이지를 찾을 수 없습니다</h1><p><a href="/">카탈로그로</a></p></Layout>, 404))
+app.notFound((c) => c.html(<Layout title="없는 페이지" siteUrl={c.env.SITE_URL}><NotFoundPage /></Layout>, 404))
 
 export default {
   fetch: app.fetch,
   async scheduled(_ev: ScheduledEvent, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil((async () => { await syncDocuments(env, DOCUMENTS); await runScheduled(env) })())
+    ctx.waitUntil(withDb(env, async () => { await syncDocuments(env, DOCUMENTS); await runScheduled(env) }))
   },
 }
 export { app }

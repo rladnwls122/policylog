@@ -6,8 +6,12 @@
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
   "triggers": { "crons": ["17 18 * * *"] },
-  "d1_databases": [
-    { "binding": "DB", "database_name": "policylog", "database_id": "local-dev-placeholder", "migrations_dir": "migrations" }
+  // Postgres via Hyperdrive. Create it once with
+  //   npx wrangler hyperdrive create policylog --connection-string="$DATABASE_URL"
+  // and paste the returned id here. Local dev connects directly with DATABASE_URL from .dev.vars (see .dev.vars.example),
+  // or use `wrangler dev --remote` to go through Hyperdrive. Tests run on an in-memory D1 (vitest.config.ts), same migrations.
+  "hyperdrive": [
+    { "binding": "HYPERDRIVE", "id": "REPLACE_WITH_HYPERDRIVE_ID" }
   ],
   "r2_buckets": [
     { "binding": "RAW", "bucket_name": "policylog-raw" }
