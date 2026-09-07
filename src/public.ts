@@ -1,6 +1,7 @@
 // D-1 (§67.2): 공개 표면은 diff 조각 + 제한된 발췌 + 원문 링크뿐이다. 전체 본문을 내보내는 공개 경로는 없다.
 import type { Section } from './normalize'
 import type { VersionRow } from './db'
+import { diffWords } from 'diff'
 
 export const EXCERPT_CAP = 800
 export const DOCUMENT_SHARE_CAP = 0.2
@@ -27,4 +28,36 @@ export function shapeVersion(v: VersionRow, sections: Section[]) {
   }
   const { normalized_text: _hidden, ...meta } = v
   return { ...meta, textLength: v.normalized_text.length, sections: out }
+}
+
+/**
+ * 변경 지점 중심 발췌. 조문이 길면 앞에서 800자를 자르는 방식으로는 변경이 화면 밖으로 밀린다
+ * (토스 제33조 실측). 바뀐 구간과 그 앞뒤 문맥만 남기고 나머지는 접는다.
+ */
+export function focusOnChange(before: string, after: string, context = 160, cap = EXCERPT_CAP): { before: string; after: string } {
+  const parts = diffWords(before, after)
+  const b: string[] = []
+  const a: string[] = []
+  let usedB = 0
+  let usedA = 0
+  parts.forEach((p, i) => {
+    const prevChanged = i > 0 && (parts[i - 1].added || parts[i - 1].removed)
+    const nextChanged = i + 1 < parts.length && (parts[i + 1].added || parts[i + 1].removed)
+    if (p.added || p.removed) {
+      const v = p.value.slice(0, cap)
+      if (p.removed) { b.push(v); usedB += v.length } else { a.push(v); usedA += v.length }
+      return
+    }
+    // 변경에 인접한 문맥만 남긴다. 양쪽 다 아니면 통째로 접는다.
+    let v = p.value
+    if (v.length > context * 2) {
+      const head = prevChanged ? v.slice(0, context) : ''
+      const tail = nextChanged ? v.slice(-context) : ''
+      v = [head, tail].filter(Boolean).join(' … ') || (i === 0 || i === parts.length - 1 ? '' : ' … ')
+      if (!head && !tail) v = ' … '
+    }
+    if (usedB + v.length <= cap) { b.push(v); usedB += v.length }
+    if (usedA + v.length <= cap) { a.push(v); usedA += v.length }
+  })
+  return { before: b.join(''), after: a.join('') }
 }

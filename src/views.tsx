@@ -4,7 +4,7 @@ import { diffWords } from 'diff'
 import type { DocumentRow, ChangeListRow, ChangeRow } from './db'
 import type { ChangeSection, TableRowChange } from './diff'
 import type { PublicSection } from './public'
-import { excerpt } from './public'
+import { excerpt, focusOnChange } from './public'
 
 const CSS = `
 :root{--fg:#1a1a1a;--muted:#666;--line:#e5e5e5;--bg:#fff;--ins:#e6ffec;--del:#ffebe9;--hi:#c62828;--mid:#ef6c00}
@@ -148,8 +148,8 @@ export const VersionPage: FC<{ d: DocumentRow; v: ReturnType<typeof import('./pu
   </>
 )
 
-const WordDiff: FC<{ a: string; b: string }> = ({ a, b }) => (
-  <pre class="x">{diffWords(a, b).map((p) => p.added ? <ins>{p.value}</ins> : p.removed ? <del>{p.value}</del> : p.value)}</pre>
+const WordDiff: FC<{ before: string; after: string }> = ({ before, after }) => (
+  <pre class="x">{diffWords(before, after).map((p) => p.added ? <ins>{p.value}</ins> : p.removed ? <del>{p.value}</del> : p.value)}</pre>
 )
 
 export const ChangePage: FC<{ d: DocumentRow; c: ChangeRow; from: { id: string; effective_at: string | null; observed_at: string; source_url: string }; to: { id: string; effective_at: string | null; observed_at: string; source_url: string; provenance: string } }> = ({ d, c, from, to }) => {
@@ -189,7 +189,7 @@ export const ChangePage: FC<{ d: DocumentRow; c: ChangeRow; from: { id: string; 
         <section>
           <h3>{s.identifier} {s.title} <span class="badge">{s.changeType}</span> <span class="small"><Importance n={s.importance} /></span></h3>
           {s.changeType === 'MODIFIED'
-            ? <WordDiff a={excerpt(s.beforeText)!} b={excerpt(s.afterText)!} />
+            ? <WordDiff {...focusOnChange(s.beforeText ?? '', s.afterText ?? '')} />
             : <pre class="x">{s.changeType === 'ADDED' ? <ins>{excerpt(s.afterText)}</ins> : <del>{excerpt(s.beforeText)}</del>}</pre>}
         </section>
       ))}

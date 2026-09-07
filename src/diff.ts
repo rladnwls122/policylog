@@ -14,7 +14,7 @@ const RULES: [string, RegExp, number][] = [
   ['OVERSEAS_TRANSFER', /국외|해외 이전|국외이전/, 40],
   ['PROCESSOR_DELEGATION', /위탁/, 40],
   ['PRICE', /요금|가격|수수료|이용료/, 40],
-  ['REFUND', /환불|청약철회/, 35],
+  ['REFUND', /환불|환급|청약철회/, 35],
   ['PAYMENT', /결제|지급|대금/, 35],
   ['DATA_RETENTION', /보유\s*기간|보관\s*기간|파기/, 30],
   ['SUSPENSION', /이용\s*제한|이용정지|서비스 정지|해지|탈퇴/, 30],
@@ -58,7 +58,9 @@ export function diffSections(before: Section[], after: Section[]): ChangeSection
     const prev = a.get(k)
     const full = (x: Section) => [x.title, x.content].filter(Boolean).join('\n')
     if (!prev) out.push({ identifier: k, title: s.title, changeType: 'ADDED', afterText: full(s), ...classify(full(s)) })
-    else if (full(prev) !== full(s)) out.push({ identifier: k, title: s.title, changeType: 'MODIFIED', beforeText: full(prev), afterText: full(s), ...classify(changedWords(full(prev), full(s))) })
+    // 분류에는 바뀐 단어와 그 조문의 제목·번호를 같이 넣는다. "90%→전액" 만 보면 환급 조항인 줄 모른다.
+    else if (full(prev) !== full(s)) out.push({ identifier: k, title: s.title, changeType: 'MODIFIED', beforeText: full(prev), afterText: full(s), ...classify(`${k} ${s.title}
+${changedWords(full(prev), full(s))}`) })
   }
   for (const [k, s] of a) if (!b.has(k)) out.push({ identifier: k, title: s.title, changeType: 'REMOVED', beforeText: [s.title, s.content].filter(Boolean).join('\n'), ...classify(s.content) })
   return out

@@ -4,7 +4,7 @@ import { DOCUMENTS } from './documents'
 import { type Env, syncDocuments, listDocuments, getDocument, listVersions, getVersion, getChange, listChangesForDocument, recentChanges, versionCounts, updateDocument, now } from './db'
 import { sectionsOf } from './normalize'
 import { shapeVersion, excerpt } from './public'
-import { backfill, poll, runScheduled } from './acquire'
+import { backfill, poll, runScheduled, rebuildChanges } from './acquire'
 import { Layout, Home, DocumentPage, VersionPage, ChangePage, BotPage, AdminPage } from './views'
 
 const app = new Hono<{ Bindings: Env }>()
@@ -106,6 +106,13 @@ admin.get('/', async (c) => {
 admin.post('/backfill/:id', async (c) => {
   await syncDocuments(c.env)
   try { return c.json(await backfill(c.env, c.req.param('id'))) } catch (e) { return c.json({ error: String(e) }, 400) }
+})
+// changes 는 versions 에서 파생된 데이터다. 분류 규칙이나 파서를 고치면 다시 만든다 (버전은 그대로).
+admin.post('/reparse/:id', async (c) => {
+  const id = c.req.param('id')
+  await c.env.DB.prepare('DELETE FROM changes WHERE document_id = ?').bind(id).run()
+  await rebuildChanges(c.env, id, 'BACKFILL')
+  return c.json({ id, rebuilt: true })
 })
 admin.post('/poll/:id', async (c) => { await syncDocuments(c.env); return c.json(await poll(c.env, c.req.param('id'))) })
 admin.post('/run', async (c) => { await syncDocuments(c.env); return c.json(await runScheduled(c.env)) })

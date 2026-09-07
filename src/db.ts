@@ -1,14 +1,8 @@
 // D1 접근. versions 는 INSERT 전용 — 이 파일에 versions 의 UPDATE/DELETE 는 없다 (§44).
 import { DOCUMENTS, type DocumentConfig } from './documents'
 
-export type Env = {
-  DB: D1Database
-  RAW: R2Bucket
-  SITE_URL: string
-  CONTACT_EMAIL: string
-  USER_AGENT: string
-  ADMIN_PASSWORD?: string
-}
+/** 워커 바인딩. 실제 선언은 src/env.d.ts 의 Cloudflare.Env 다 — 테스트의 env 와 같은 타입을 쓴다. */
+export type Env = Cloudflare.Env
 
 export interface DocumentRow {
   id: string; service: string; service_name: string; type: string; title: string; canonical_url: string
