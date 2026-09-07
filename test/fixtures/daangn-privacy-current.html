@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>당근 개인정보 처리방침</title>
+<link rel="icon" href="daangn_privacy_assets/favicon.ico">
+<style>/* ─────────────────────────────────────────────────────────────
+   Published privacy-policy stylesheet (WYSIWYG with the editor)
+
+   Page chrome (header / TOC / easy-intro / intro / selector / popups)
+   is kept from the original design. All body content inside
+   .ProseMirror is styled to match the TipTap editor exactly, so the
+   published page renders the same as the editor. The old per-section
+   #section-N / .indent-* hardcoded rules were removed — they were tuned
+   for hand-authored markup and fought the editor's clean output.
+   ───────────────────────────────────────────────────────────── */
+
+/* Base reset */
+*, *::before, *::after { box-sizing: border-box; }
+strong, b { font-weight: bold; }
+/* height:100% 를 주면 sticky 헤더의 컨테이닝 블록이 한 화면으로 제한되어
+   헤더가 첫 화면만 지나면 같이 스크롤돼 버림 → 지정하지 않아 body가 전체 내용 높이로 늘어나게 함 */
+/* 목차 링크 클릭 시 부드럽게 스크롤 */
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, "Apple Color Emoji", sans-serif;
+  line-height: 1.6;
+  color: #37352f;
+  background: #ffffff;
+  padding-bottom: 56px;
+}
+
+/* Layout: each top-level section is 90% width, centered */
+header, nav, main, footer, section#easy-intro {
+  width: 90vw;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+}
+main#content { padding-bottom: 96px; }
+
+/* Sticky header (no back button on the policy page) */
+header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #fff;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+header h1 {
+  margin: 16px 0 8px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-size: clamp(22px, 3vw, 32px);
+}
+.back {
+  color: #555;
+  font-size: 14px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.back:hover { text-decoration: underline; color: #333; }
+
+/* TOC (목차) - 2열 그리드 */
+#toc {
+  width: 90vw !important;
+  max-width: 1200px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  border-top: 1px solid #e0e0e0;
+  border-bottom: 1px solid #e0e0e0;
+  padding: 16px 0;
+  margin: 16px 0;
+}
+#toc h2 { margin: 0 0 12px 0; font-size: 1.2em; font-weight: 600; }
+#toc .container { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; padding-left: 0; }
+#toc .container > div { display: flex; flex-direction: column; gap: 6px; }
+.toc-left, .toc-right { display: flex; flex-direction: column; gap: 6px; }
+#toc a { display: block; padding: 8px 12px; text-decoration: none; color: inherit; border-radius: 4px; font-size: 1em; }
+#toc a:hover { background: #f5f5f5; }
+@media (max-width: 640px) { #toc .container { grid-template-columns: 1fr 1fr; } }
+
+/* Easy intro block */
+#easy-intro .intro { margin: 0 0 8px 0; font-size: clamp(14px, 1.8vw, 18px); }
+#easy-intro #easy-link { display: block; }
+#easy-intro #easy-link img { display: block; max-width: 25%; height: auto; }
+
+/* Section headings keep the original look (not the editor's underlined h2) */
+#content h2 { margin: 24px 0 12px 0 !important; font-size: 1.2em !important; font-weight: 600 !important; }
+
+/* Intro text section */
+#intro-text { width: 90vw; max-width: 1200px; margin: 8px auto 0; padding: 8px 0 0; }
+#intro-text p { margin: 0; line-height: 1.6; font-size: 15px; }
+
+/* Content links keep neutral color */
+section a, .ProseMirror a { color: inherit; text-decoration: underline; }
+section a:hover, .ProseMirror a:hover { color: #888; text-decoration: underline; }
+
+/* Deliberate section image sizing (screenshots) */
+#section-8 img, #section-9 img { max-width: 25%; height: auto; }
+@media (max-width: 768px) {
+  #easy-intro #easy-link img, #section-8 img, #section-9 img { max-width: 90% !important; }
+}
+
+/* ── Editor (TipTap) content — WYSIWYG ─────────────────────────
+   Body content is wrapped in .ProseMirror and styled identically to
+   the editor. Headings/links/section images above intentionally win
+   by higher specificity to preserve page chrome. */
+.ProseMirror { font-size: 15px; line-height: 1.5; color: #1a1a1a; }
+.ProseMirror h1 { font-size: 22px; font-weight: 700; margin: 28px 0 10px; }
+.ProseMirror h3 { font-size: 18px; font-weight: 700; margin: 18px 0 6px; }
+/* 목차 점프 시 sticky 헤더에 제목이 가리지 않도록 오프셋 */
+.ProseMirror h2, .ProseMirror h3 { scroll-margin-top: 76px; }
+.ProseMirror p { margin-bottom: 5px; }
+.ProseMirror ul, .ProseMirror ol { padding-left: 1em; margin-bottom: 10px; }
+.ProseMirror li { margin-bottom: 4px; }
+.ProseMirror li p { margin-left: 0 !important; }
+.ProseMirror blockquote { border-left: 3px solid #ddd; padding-left: 14px; color: #666; margin: 12px 0; }
+.ProseMirror hr { border: none; border-top: 1px solid #e5e5e5; margin: 20px 0; }
+.ProseMirror em { font-style: italic; }
+.ProseMirror u { text-decoration: underline; }
+.ProseMirror code { background: #f0f0f0; border-radius: 3px; padding: 1px 5px; font-size: 13px; }
+.ProseMirror table { border-collapse: collapse; table-layout: auto; margin: 12px 0; }
+.ProseMirror th, .ProseMirror td { border: 1px solid #ddd; padding: 8px 10px; vertical-align: top; min-width: 60px; }
+.ProseMirror th { background: #f5f5f3; font-weight: 700; text-align: left; }
+.ProseMirror td p, .ProseMirror th p { margin: 0; }
+.ProseMirror img { max-width: 100%; height: auto; border-radius: 4px; display: block; margin: 8px 0; }
+
+/* 클릭형 팝업 (편집기 '팝업' 마크 → .popover-trigger, 스크립트가 .contact-popover 버블 생성) */
+.popover-trigger { text-decoration: underline; cursor: pointer; }
+/* 정보 아이콘(ⓘ) — 마우스오버 시 툴팁 */
+.info-tip { display: inline-block; color: #bbb; font-weight: 400; cursor: help; margin: 0 2px; }
+.info-tip .contact-popover { white-space: normal; max-width: min(280px, 82vw); font-size: 0.72rem; line-height: 1.5; padding: 8px 11px; }
+.contact-popover-wrap { position: relative; display: inline-block; }
+.contact-popover {
+  display: none;
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 10px;
+  background-color: #fff;
+  border: 1px solid #888;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  padding: 10px 14px;
+  width: max-content;
+  max-width: min(340px, 80vw);
+  z-index: 1000;
+  font-size: clamp(0.68rem, 2.6vw, 0.9rem);
+  font-weight: normal;
+  line-height: 1.6;
+  color: #333;
+  white-space: normal;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.contact-popover.show { display: block; }
+.contact-popover strong { font-weight: 700; }
+.contact-popover p { margin: 0 0 5px; }
+.contact-popover p:last-child { margin-bottom: 0; }
+.contact-popover ul, .contact-popover ol { margin: 2px 0; padding-left: 18px; }
+.contact-popover::after {
+  content: ""; position: absolute; top: 100%; left: 24px;
+  border: 8px solid transparent; border-top-color: #fff;
+}
+.contact-popover::before {
+  content: ""; position: absolute; top: 100%; left: 23px;
+  border: 9px solid transparent; border-top-color: #888; z-index: -1;
+}
+
+/* Cookie / Ad popup modal */
+.modal {
+  display: none; position: fixed; z-index: 1000; left: 0; top: 0;
+  width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);
+}
+.modal-content {
+  background-color: #fefefe; margin: 3% auto; padding: 25px;
+  border: 1px solid #888; border-radius: 8px; width: 90%; max-width: 800px;
+  max-height: 90vh; overflow-y: auto; overflow-x: hidden; box-sizing: border-box;
+}
+.close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+.close:hover, .close:focus { color: black; text-decoration: none; }
+
+.cookie-methods h4 { margin: 25px 0 15px 0; color: #333; font-size: 18px; border-bottom: 2px solid #007bff; padding-bottom: 5px; }
+.cookie-methods p { margin: 5px 0 10px 0; padding-left: 10px; color: #666; }
+.browser-method { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background-color: #f9f9f9; }
+.browser-method h5 { margin: 0 0 10px 0; color: #333; font-size: 16px; }
+.browser-method p { margin: 5px 0 15px 0; color: #666; font-size: 14px; }
+.cookie-image { width: 100%; max-width: 400px; height: auto; border: none; border-radius: 5px; display: block; margin: 10px auto; }
+img[src*="cookie1.png"], img[src*="cookie2.png"], img[src*="cookie4.png"] { max-width: 800px !important; }
+img[src*="cookie3.png"], img[src*="cookie5.png"] { max-width: 300px !important; }
+a[onclick*="showCookiePopup"] { text-decoration: none; }
+a[onclick*="showCookiePopup"]:hover { text-decoration: underline; }
+
+.ad-methods h4 { margin: 20px 0 10px 0; color: #333; font-size: 16px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+.ad-methods p { margin: 5px 0 15px 0; color: #666; font-size: 14px; padding-left: 10px; }
+.platform-method { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background-color: #f9f9f9; width: 100%; max-width: 100%; overflow: hidden; box-sizing: border-box; }
+.ad-image { width: 100%; max-width: 800px; height: auto; border: none; border-radius: 5px; display: block; margin: 10px auto; box-sizing: border-box; object-fit: contain; }
+a[onclick*="showAdPopup"] { text-decoration: none; }
+a[onclick*="showAdPopup"]:hover { text-decoration: underline; }
+@media (max-width: 768px) {
+  .ad-image { max-width: 100% !important; width: 100% !important; }
+  .platform-method { margin: 15px 0; padding: 10px; }
+  .ad-methods h4 { font-size: 14px; }
+  .ad-methods p { font-size: 12px; }
+}
+
+/* 이전 처리방침 콤보박스 (섹션 17 아래) */
+.policy-version-select { margin: 8px 0 16px 0; display: flex; align-items: center; gap: 8px; }
+.policy-version-select label { display: inline-block; margin-right: 8px; font-weight: 600; }
+.policy-version-select select { padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; background: #fff; }
+.policy-actions { display: flex; align-items: center; gap: 16px; }
+@media (max-width: 640px) {
+  .policy-actions { flex-direction: column; align-items: stretch; gap: 10px; }
+  .policy-version-select { width: 100%; }
+  .policy-version-select select { width: 100%; }
+}
+
+
+header{position:sticky;top:0;z-index:10;background:#fff;
+       padding:16px 24px;display:flex;align-items:center;justify-content:space-between}
+.back{color:#555;font-size:14px;cursor:pointer;background:none;border:none;
+      padding:0;font-family:inherit;white-space:nowrap}
+.back:hover{text-decoration:underline;color:#333}
+</style>
+</head>
+<body>
+<header>
+  <h1>당근 개인정보 처리방침</h1>
+</header>
+<section id="easy-intro">
+  <p class="intro">당근은 이용자의 편의를 위하여 본 개인정보 처리방침의 내용을 이용자가 알기 쉽도록 재구성한 "쉽게 보는 개인정보 처리방침"을 제공 하고 있습니다. 개인정보 처리방침에 대한 보다 쉬운 이해를 위해서 참고하실 수 있습니다.</p>
+  <a id="easy-link" href="/easy_ver/" target="_blank" rel="noopener">
+    <img src="daangn_privacy_assets/easy_Ver.png" alt="쉽게 보는 개인정보 처리방침 바로가기">
+  </a>
+</section>
+<nav id="toc">
+  <h2>목차</h2>
+  <div class="container">
+    <div class="toc-left"><a href="#01-개인정보-처리목적">01 개인정보 처리목적</a><a href="#02-처리하는-개인정보의-항목">02 처리하는 개인정보의 항목</a><a href="#03-개인정보의-처리-및-보유-기간">03 개인정보의 처리 및 보유 기간</a><a href="#04-14세-미만-아동의-개인정보-처리에-관한-사항">04 14세 미만 아동의 개인정보 처리에 관한 사항</a><a href="#05-개인정보-파기-절차-및-방법에-관한-사항">05 개인정보 파기 절차 및 방법에 관한 사항</a><a href="#06-개인정보-제3자-제공">06 개인정보 제3자 제공</a><a href="#07-추가적인-이용제공-판단-기준">07 추가적인 이용・제공 판단 기준</a><a href="#08-개인정보-처리업무의-위탁">08 개인정보 처리업무의 위탁</a><a href="#09-개인정보의-국외-이전">09 개인정보의 국외 이전</a></div>
+    <div class="toc-right"><a href="#10-개인정보-안전성-확보조치">10 개인정보 안전성 확보조치</a><a href="#11-개인정보-자동-수집-장치의-설치운영-및-그-거부에-관한-사항">11 개인정보 자동 수집 장치의 설치・운영 및 그 거부에 관한 사항</a><a href="#12-이용자-및-법정대리인의-권리의무-및-행사방법">12 이용자 및 법정대리인의 권리・의무 및 행사방법</a><a href="#13-개인정보-책임자-및-담당부서">13 개인정보 책임자 및 담당부서</a><a href="#14-개인위치정보의-처리">14 개인위치정보의 처리</a><a href="#15-이용자의-권익침해에-대한-구제방법">15 이용자의 권익침해에 대한 구제방법</a><a href="#16-회사의-추가적인-개인정보-보호노력">16 회사의 추가적인 개인정보 보호노력</a><a href="#17-개인정보처리방침의-시행-및-변경에-관한-사항">17 개인정보처리방침의 시행 및 변경에 관한 사항</a></div>
+  </div>
+</nav>
+<section id="intro-text">
+  <p>(주)당근마켓(이하 "회사"라고 합니다)은 「개인정보 보호법」, 「정보통신망 이용촉진 및 정보보호 등에 관한 법률」 등 관계 법령이 정한 바를 준수하여, 적법하고 안전하게 이용자의 개인정보를 처리하고 있습니다. 이에 「개인정보 보호법」 제30조에 따라 이용자에게 개인정보의 처리와 보호에 관한 절차 및 기준을 안내하고, 이와 관련한 고충을 신속하고 원활하게 처리할 수 있도록 하기 위하여 다음과 같이 개인정보 처리방침을 수립하여 공개하고 있습니다.</p>
+</section>
+<main id="content">
+<div class="ProseMirror">
+<section id="section-1"><h3 id="01-개인정보-처리목적"><strong>01 개인정보 처리목적</strong></h3><p>회사는 다음의 목적을 위하여 개인정보를 처리합니다. 처리하고 있는 개인정보는 다음의 목적 이외의 용도로는 이용되지 않으며, 이용목적이 변경되는 경우에는 「개인정보 보호법」 제18조에 따라 별도의 동의를 받는 등 필요한 조치를 이행할 것입니다.</p><p>1. 서비스 등록 및 관리</p><p style="margin-left: 1em;">회원가입 및 탈퇴, 헤택·서비스이용 등록 및 해지, 연령 확인, 이용자 및 법정대리인의 본인 확인, 법정대리인의 동의 여부 확인, 회원제 서비스 제공에 따른 본인 식별・인증, 중복가입 방지, 회원자격 유지・관리, 각종 고지・통지, 분쟁조정, 고충처리 목적으로 개인정보를 처리합니다.</p><p>2. 재화 또는 서비스 제공</p><p style="margin-left: 1em;">물품배송, 서비스 제공, 이벤트 정보 및 참여 기회 제공, 계약서・청구서 발송, 관심사・성향・위치에 기반한 콘텐츠 및 맞춤서비스 제공, 본인인증, 연령인증, 요금결제・정산의 목적으로 개인정보를 처리합니다.</p><p>3. 서비스 개선 및 신규 서비스 개발</p><p style="margin-left: 1em;">기존 서비스 제공에 더하여 서비스 이용기록, 인구통계학적 분석 및 이용자의 관심을 바탕으로 다양한 서비스 기능을 강화하고, 이용자 경험을 개선하기 위해 개인정보를 처리합니다. 이 과정에서 인공지능(AI) 기술이 적용될 수 있으며, 이를 통해 콘텐츠 생성, 제공, 추천, 요약, 번역, 음성·이미지 등 이용자 입력정보를 활용한 게시글 등 작성 보조, 이미지 내 정보 추출·요약, 문의답변, 캐릭터와 상호작용, 서비스 부정이용 방지 등의 방식으로 서비스 품질을 향상하고 신규 서비스를 개발하는 데 활용됩니다.</p><p>4. 보안, 프라이버시 보호를 포함한 안전한 서비스 환경 구축 및 관리</p><p style="margin-left: 1em;">서비스 부정이용 방지, 관계 법령 및 당근비즈니스 이용약관 위반 이용자에 대한 이용 제한 조치 목적으로 개인정보를 처리합니다.</p></section><section id="section-2"><h3 id="02-처리하는-개인정보의-항목">02 처리하는 개인정보의 항목</h3><p>회사는 서비스 제공을 위해 최소한의 범위에서 개인정보를 수집・이용 합니다.</p><p><strong>1. 이용자의 동의를 받지않고 처리하는 개인정보 항목</strong></p><p style="margin-left: 1em;">회사는 다음의 개인정보 항목을 「개인정보 보호법」 제15조 제1항 제4호('계약이행')에 따라 이용자의 동의를 받지 않고 처리하고 있습니다.</p><p style="margin-left: 1em;"><strong>1) 회원가입 및 관리</strong></p><ul style="margin-left: 1em;"><li><p>(휴대)전화번호, 지역정보, 닉네임, 이용자식별값(회원가입 시 자동 생성되는 임의의 값), 관심카테고리, (사진등록 시) 프로필 사진, (이메일 등록 시) 이메일, (비밀번호 설정 시) 비밀번호</p></li><li><p>[통합주소록 등록 및 관리] 성명, (휴대)전화번호, 주소(업데이트 내역 포함), 공동현관 비밀번호(해당 시)</p></li></ul><p style="margin-left: 1em;"><strong>2) 본인인증 </strong><span data-tip="&lt;p&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;&lt;strong&gt;암호화된 동일인식별정보(CI)란?&lt;/strong&gt;&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;정보통신서비스 제공자의 서비스 연계를 위하여 이용자의 주민등록번호를 비가역적으로 암호화한 정보로, '연계정보' 라 합니다. 회사는 주민등록번호를 별도로 수집하지 않습니다.&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;&lt;strong&gt;어떤 서비스에서 수집 및 제공되나요?&lt;/strong&gt;&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;본인인증(휴대전화번호 인증, 중고거래 판매자 신원확인) 과정에서 수집되고,본인 여부 대조를 위하여 당근페이 회원 가입 시, 당근알바 자격증 연결하기 시 제공됩니다.&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot;font-size: 9px;&quot;&gt;→ 구체적인 사항은 02 처리하는 개인정보, 06 개인정보 제3자 제공 참조 하실 수 있습니다.&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;&lt;strong&gt;언제 파기되나요?&lt;/strong&gt;&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;서비스 연계 목적으로 보관 중인 경우 : 이용자 탈퇴 또는 보유기간 만료 &lt;/span&gt;&lt;br&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;본인확인 등 일시적 처리 : 처리 목적 달성 즉시 파기&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot;font-size: 9px;&quot;&gt;→ 구체적인 사항은 03 개인정보의 처리 및 보유 기간, 06 개인정보 제3자 제공 참조 하실 수 있습니다.&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;&lt;strong&gt;내정보는 안전하게 관리되고있나요?&lt;/strong&gt;&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;이용자의 연계정보는 관련법령에 따라 처리되고 있습니다.&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot;font-size: 9px;&quot;&gt;→ 10 개인정보 안전성 확보조치 및 12 이용자 권리·의무 참조 하실 수 있습니다.&lt;/span&gt;&lt;/p&gt;" class="info-tip">ⓘ</span></p><ul style="margin-left: 1em;"><li><p>[휴대전화번호 인증] (휴대)전화번호, 성명, 생년월일, 성별, 통신사, 암호화된 동일인식별정보(CI), 암호화된 중복가입확인정보(DI), 내외국인 정보, 본인인증 이력 [금융인증서 인증] 암호화된 중복가입확인정보(DI) [신분 인증] 성명, 생년월일, 인증결과, [얼굴 인증] 성명, 생년월일, 인증결과, 본인확인가능 증명서에서 발췌한 얼굴사진, 실시간 촬영얼굴(셀카), 인증결과, [기기인증] (휴대)전화번호</p></li></ul><p style="margin-left: 1em;"><strong>3) 동네생활</strong></p><ul style="margin-left: 1em;"><li><p>[동네지도] 대표장소 [동네 걷기] 걸음 수, 생년월일, (말로쓰는 후기 사용 시) 음성대화 [당근 증명서] 전자문서지갑주소(변경 시 변경되는 주소도 포함), 디바이스 식별값, [당근 아파트] 주민등록등본상 주소, 전입신고일, (외국인의 경우) 임대차계약서, 외국인 등록 또는 국내거소신고 사실증명</p></li></ul><p style="margin-left: 1em;"><strong>4) 고객센터</strong></p><ul style="margin-left: 1em;"><li><p>[일반 문의] 이용자식별값, 상담내역</p></li><li><p>[비회원 문의] (휴대)전화번호, 상담내역, [이메일 문의 시] 이메일, 상담내역</p></li><li><p>[부정이용기록 및 동일인 식별] (휴대)전화번호, 이메일, IP, 암호화된 중복가입확인정보(DI), 거래계좌(부정이용기록이 있는 계좌), 부정이용기록, 단말기정보(OS 종류, OS Version, 디바이스 종류, 디바이스 식별값, 앱 Version), 광고식별자, 지역정보, 채팅기록 중 부정이용기록과 관계 있는 정보(SNS계정, 피싱사이트, 계좌정보와 같은 정보를 포함함)</p></li></ul><p style="margin-left: 1em;"><strong>5) 커머스</strong></p><ul style="margin-left: 1em;"><li><p>[공통] 구매자 정보(닉네임, 프로필 사진), [배송상품의 경우] 배송지 정보(성명・주소・(휴대)전화번호, 공동현관 비밀번호(해당 시))</p></li><li><p>[당근초특가] 이용자 정보(닉네임), (휴대)전화번호</p></li></ul><p style="margin-left: 1em;"><strong>6) 예약</strong></p><ul style="margin-left: 1em;"><li><p>[일반예약] 신청자 정보(닉네임, 프로필 사진), 예약정보(방문자 성명,(휴대)전화번호, (해당 시) 주소)</p></li><li><p>[세탁서비스 예약] 신청자 정보(닉네임, 프로필사진), 배송지 정보(성명・주소・(휴대)전화번호), 공동현관 비밀번호(해당 시)</p></li><li><p>[세차서비스 예약] 성명, (휴대)전화번호, 주소, 차량번호·소유자명과 같은 차량정보 및 차고 비밀번호와 같은 차량 보관장소 출입 시 필요한 정보</p></li><li><p>[병원 접수] 신청자 정보(닉네임, 프로필사진), 예약정보(방문자 성명)</p></li></ul><p style="margin-left: 1em;"><strong>7) 전문가</strong></p><ul style="margin-left: 1em;"><li><p>(견적요청 시) 견적요청정보(견적요청정보, 주소)</p></li><li><p>(물품운반 시) 출발/도착지 주소, 공동현관 비밀번호(해당 시)</p></li></ul><p style="margin-left: 1em;"><strong>8) 채팅</strong></p><ul style="margin-left: 1em;"><li><p>채팅 내용(채팅방ID, 메시지 원문)</p></li></ul><p style="margin-left: 1em;"><strong>9) 부동산</strong></p><ul style="margin-left: 1em;"><li><p>[공통] 소유주 또는 세입자의 성명, 생년월일, 성별, (매물등록 시) (휴대)전화번호, (추가서류 필요 시) 계약기간 만료, 추가 예외 사유 확인을 위한 증빙서류(<a target="_blank" rel="noopener noreferrer nofollow" href="https://realty.daangn.com/terms/article_verification_documents">증빙서류 목록</a>)</p></li><li><p>[법인인증] 법인대표자 또는 법인 직원·임원의 성명, 생년월일, 성별, 연락처</p></li><li><p>[세입자 인증] 임대차계약서 사본(임차인 성명, 생년월일, 성별, 매물 주소, 연락처)</p></li><li><p>[거주자 인증] 성명, 생년월일, (휴대)전화번호, 주민등록등본</p></li><li><p>[안심송금] 입금(환불)·정산계좌정보(은행명, 은행코드, 예금주명, 계좌번호), 가상계좌번호, 거래정보(거래금액, 거래일시, 거래상태, 거래번호)</p></li></ul><p style="margin-left: 1em;"><strong>10) 중고차</strong></p><ul style="margin-left: 1em;"><li><p>[매물등록] 차량번호, 차량소유자명, 위탁사로부터 제공받은 차대번호를 포함한 중고차 판매등록을 위한 차량 부가정보</p></li></ul><p style="margin-left: 1em;"><strong>11) 알바</strong></p><ul style="margin-left: 1em;"><li><p>[공통] (기본정보) 성명, (휴대)전화번호, 성별, 생년월일, 지역정보, 비자 유형, (등록 시) 이메일, (소개정보) 자기소개, 나의 장점, 추가정보, 포트폴리오 및 기타 첨부서류, (말로하는 자기소개 사용 시) 음성대화, (학력정보) 학교, 학력구분, 전공, 졸업 여부, (자격정보) 자격정보(자격증 번호, 자격증명, 자격증 이미지), (경력정보) 근무처, 담당 업무, 근무 기간</p></li><li><p>[신분 인증] 성명, 생년월일, 인증결과 [금융인증서 인증] 암호화된 중복가입확인정보(DI) [얼굴 인증] 성명, 생년월일, 인증결과, 본인확인가능 증명서에서 발췌한 얼굴사진, 실시간 촬영얼굴(셀카), 인증결과</p></li><li><p>[과외/레슨 프로필] 프로필 사진, 닉네임, 한줄소개, 자기소개, 소개사진 및 영상, 경력, 학력, 자격증, 서비스제공정보(수업지역, 전문분야, 수업방식, 대상, 수업료, 수업료설명, 수업가능시간)</p></li></ul><p style="margin-left: 1em;"><strong>12) 중고거래</strong></p><ul style="margin-left: 1em;"><li><p>[바로구매] 성명, (휴대)전화번호, 주소</p></li></ul><p style="margin-left: 1em;"><strong>13) 포장주문</strong></p><ul style="margin-left: 1em;"><li><p>(휴대)전화번호, 주문내역(메뉴, 금액)</p></li></ul><p style="margin-left: 1em;"><strong>14) QR오더</strong></p><ul style="margin-left: 1em;"><li><p>(휴대)전화번호</p></li></ul><p style="margin-left: 1em;"><strong>15) 이벤트 및 설문참여</strong></p><ul style="margin-left: 1em;"><li><p>이용자식별값, (당첨확인 및 물품 배송 시) 당첨자 정보(당첨자 성명, (휴대)전화번호), 수령지 정보((휴대)전화번호, 성명, 주소)</p></li></ul><p style="margin-left: 1em;"><strong>16) 주문 및 결제처리</strong></p><ul style="margin-left: 1em;"><li><p>결제ID, 주문내역(상품명, 수량, 금액과 같은 상품 구매정보), 결제정보, 카드사·일부 카드번호 식별자, 은행명·가상계좌번호·예금주 성명과 같은 결제수단정보</p></li><li><p>(가상계좌 결제 건 환불 시) 예금주 성명, 은행명, 계좌번호</p></li></ul><p style="margin-left: 1em;"><strong>17) 생성형 AI활용 서비스 제공을 위해 수집하는 항목</strong></p><ul style="margin-left: 1em;"><li><p>이용자가 대화창·게시글 작성 시 입력하는 내용, 이용자 업로드 이미지, 음성대화, 채팅 메세지, 상담내역 정보, 서비스 이용기록<br><small>※ 서비스의 특성상 이용자의 자유로운 입력이 가능하므로, 이용자는 음성입력 시 또는 대화창, 게시글 등에 본인 또는 타인의 개인정보, 민감한 정보(주민등록번호, 여권번호, 의료 정보, 신용카드 번호 등)나 기밀정보를 입력하지 않도록 각별히 주의하여야 합니다.</small><br></p></li></ul><p style="margin-left: 1em;">회사는 다음의 개인정보 항목을 「개인정보 보호법」 제15조 제1항 제2호 (’법령상 의무 준수’)에 따라 이용자의 동의를 받지 않고 처리하고 있습니다.</p><p style="margin-left: 1em;"><strong>1) 알바 : 「직업안정법」 제25조 제3호 및 동법 시행령 제28조(‘직업정보제공자의 준수사항’)</strong></p><ul style="margin-left: 1em;"><li><p>[구인자 신원확인] 업체명, 성명, 주소, (휴대)전화번호</p></li></ul><p style="margin-left: 1em;"><strong>2) 중고차 : 「자동차관리법」 제69조의5(‘정보통신서비스 제공자의 의무’)</strong></p><ul style="margin-left: 1em;"><li><p style="margin-left: 1em;">[차량 소유자 사전 동의 여부 확인] 소유자(또는 법인 대표자)의 사전 동의 여부를 확인할 수 있는 문서</p></li></ul><p style="margin-left: 1em;"><strong>3) 중고거래 : 「전자상거래법」 제20조의4 ('개인 간 거래에 관한 통신판매중개업자의 의무와 책임')</strong></p><ul style="margin-left: 1em;"><li><p style="margin-left: 1em;">[개인판매자 신원확인] (휴대)전화번호, 성명, 생년월일, 성별, 통신사, 암호화된 동일인식별정보(CI), 암호화된 중복가입확인정보(DI), 내외국인 정보, 본인인증 이력</p><p style="margin-left: 1em;"></p></li></ul><p><strong>2. 이용자의 동의를 받아 처리하는 개인정보 항목</strong></p><p style="margin-left: 1em;">회사는 다음의 개인정보 항목을 「개인정보 보호법」 제15조 제1항 제1호, 제23조 제1항 제1호에 따라 이용자의 동의를 받아 처리하고 있습니다. 이때 회사는 수집하는 개인정보 항목, 수집 및 이용 목적, 보관기간 등 관계법령에서 정한 바를 성실히 안내하고 별도로 동의를 취득합니다. 서비스(혹은 기능)별로 처리하는 개인정보는 다음과 같습니다.</p><p style="margin-left: 1em;"><strong>1) 고객센터</strong></p><ul style="margin-left: 1em;"><li><p>[본인확인] 성별, 성명, (휴대)전화번호, 통신사 가입서류, 가족관계증명서, 마스킹 처리된 본인확인가능 증명서 사본</p></li></ul><p style="margin-left: 1em;"><strong>2) 알바</strong></p><ul style="margin-left: 1em;"><li><p>[이웃보험 가입] 성명, 성별, 생년월일, (휴대)전화번호, 암호화된 이용자식별값, 보험계약과 연관된 피보험자의 구직정보, 보험계약정보(보험계약일자, 보험기간, 보상 및 보험료 납입 관련 정보, 증권번호)</p></li><li><p>[신분·얼굴 인증] 안면 정보(얼굴 특징정보)</p></li></ul><p style="margin-left: 1em;"><strong>3) 리드폼</strong></p><ul style="margin-left: 1em;"><li><p>성명, (휴대)전화번호</p></li></ul><p style="margin-left: 1em;"><strong>4) 이벤트 및 설문참여</strong></p><ul style="margin-left: 1em;"><li><p>[광고성 정보 발송] 닉네임, (휴대)전화번호, 이용자식별값, (본인인증한 회원의 경우) 성명, 생년월일, (등록 시) 이메일, [맞춤형 광고 설정] 연령, 성별, 검색이력, 거래기록, 방문기록, 콘텐츠 생성・열람・추천을 포함한 서비스 이용기록, IP주소, 운영체제 정보・인터페이스・언어 설정과 같은 단말기 정보, 광고식별자, 서비스 내 구매 및 결제 내역, 위치정보, (등록 시) 이메일 주소</p></li><li><p>이벤트 또는 설문 내 개인정보 기재가 필요할 경우 해당 개인정보<br><small>※ 구체적인 사항은 각 이벤트 진행 시 별도 안내 예정</small></p></li></ul><p><strong>3. 서비스 이용과정에서 자동으로 생성 및 수집되는 정보</strong></p><p style="margin-left: 1em;">서비스 이용과정에서 검색이력, 거래기록, 방문기록, 콘텐츠 생성・열람・추천을 포함한 서비스 이용기록, IP주소, 운영체제 정보・인터페이스・언어 설정과 같은 단말기 정보, 광고식별자가 생성되어 수집될 수 있습니다. 수집된 정보는 개인정보와의 연계 여부 등에 따라 개인정보에 해당할 수도 있고, 개인정보에 해당하지 않을 수도 있습니다.</p><p style="margin-left: 1em;">서비스 이용과정에서 위치정보가 수집될 수 있습니다. 위치정보는 「위치정보의 보호 및 이용등에 관한 법률」 에 따라 위치정보를 수집 및 이용 하고 있습니다. 회사에서 제공하는 위치기반 서비스에 대해서는 <a target="_blank" rel="noopener noreferrer nofollow" href="https://www.daangn.com/policy/location">위치기반 서비스 이용약관</a> 에서 보다 자세하게 설명하고 있습니다.</p><p style="margin-left: 1em;">서비스에서 처리되는 위치정보가 개인정보와 연계되어 처리될 시에는 경우에 따라 개인위치정보로 취급될 수 있습니다. 회사는 개인위치정보의 수집시 「위치정보의 보호 및 이용등에 관한 법률」 제18조 에 따라 개인위치이용자의 동의를 얻어 처리하고 있습니다. 개인위치정보 처리에 대한 보다 자세한 사항은 <a target="_blank" rel="noopener noreferrer nofollow" href="#section-14">"14 개인위치정보의 처리"</a>에서 확인 하실 수 있습니다.</p></section><section id="section-3"><h3 id="03-개인정보의-처리-및-보유-기간">03 개인정보의 처리 및 보유 기간</h3><p>회사는 관계 법령에 따른 개인정보 보유이용기간 또는 개인정보 수집 시 이용자로부터 동의받은 보유・이용 기간 내에서 개인정보를 처리・보유 합니다. <br>각각의 개인정보 처리 및 보유 기간은 다음과 같습니다.</p><p>1. 회원가입 및 관리 : 회원탈퇴 후 6개월까지(휴대전화 변경에 따른 탈퇴 처리 및 계정 복구요청, 부정이용 이력 확인 및 재발방지를 위하여 필요한 최소한의 정보((휴대)전화번호, DI(암호화된 중복가입확인정보)만을 보관)</p><p style="margin-left: 1em;">※ 다만, 다음의 사유에 해당하는 경우에는 해당 사유 종료 시까지 처리・보유 합니다.</p><p style="margin-left: 2em;">1) 관계 법령 위반에 따른 수사・조사 등이 진행 중인 경우에는 해당 수사・조사 종료 시까지</p><p style="margin-left: 2em;">2) 회사의 이용약관에 따른 서비스 재가입 확인·제재 발생 시 동일인 식별 및 부정이용 방지에 필요한 경우</p><ul style="margin-left: 2em;"><li><p>(휴대)전화번호, IP, 단말기정보(OS종류, OS version, 디바이스종류, 디바이스 식별값, 앱 version), 광고식별자, 지역정보 , 암호화된 중복가입확인정보(DI) : 회원탈퇴 후 6개월 또는 제재 적용에 따른 제재기간 종료 시까지(제재기간 중 탈퇴 시 탈퇴시점으로부터 최대 5년)</p></li></ul><p>2. 재화 또는 서비스 제공 : 재화・서비스 공급 완료 및 요금 결제・정산, 서비스 제공에 따른 CS대응 업무 처리 완료 시까지</p><p style="margin-left: 1em;">※ 다만, 다음의 사유에 해당하는 경우에는 해당 사유 종료 시까지 처리・보유 합니다.</p><p style="margin-left: 2em;">1) 개인간 거래에 대한 분쟁 해결이 필요할 경우</p><ul style="margin-left: 2em;"><li><p>거래기록(판매 게시물 및 채팅내용) : 5년</p></li></ul><p style="margin-left: 2em;">2) 회사의 이용약관에 따른 서비스 재가입 확인·제재 발생 시 동일인 식별 및 부정이용 방지에 필요한 경우</p><ul style="margin-left: 2em;"><li><p>(휴대)전화번호, IP, 단말기정보(OS 종류, OS Version, 디바이스 종류, 디바이스 식별값, 앱 Version), 광고식별자, 지역정보, 암호화된 중복가입확인정보(DI), 부정이용기록, 거래계좌(부정이용기록과 연관된 계좌), 채팅기록 중 부정이용기록과 관계 있는 정보(SNS계정, 피싱사이트, 계좌정보와 같은 정보를 포함함) : 회원탈퇴 후 6개월 또는 제재 적용에 따른 제재기간 종료 시까지(제재기간 중 탈퇴 시 탈퇴시점으로부터 최대 5년)</p></li></ul><p style="margin-left: 2em;">3) 「전자상거래 등에서의 소비자보호에 관한 법률」 제6조(거래기록의 보존 등) 에 따른 표시・광고, 계약내용 및 이행 등 거래에 관한 기록</p><ul style="margin-left: 2em;"><li><p>계약 또는 청약철회, 대금결제, 재화 등의 공급기록 : 5년</p></li><li><p>소비자 불만 또는 분쟁처리에 관한 기록 : 3년</p></li><li><p>표시・광고에 관한 기록 : 6개월</p></li></ul><p style="margin-left: 2em;">4) 「통신비밀보호법」 제15조의2(전기통신사업자의 협조의무)</p><ul style="margin-left: 2em;"><li><p>컴퓨터통신, 인터넷 로그기록자료, 접속지 추적자료 : 3개월</p></li></ul><p style="margin-left: 2em;">5)「국세기본법」 85조의3(장부 등의 비치와 보존)</p><ul style="margin-left: 2em;"><li><p>세법이 규정하는 모든 거래에 관한 장부 및 증빙서류 : 5년</p></li></ul></section><section id="section-4"><h3 id="04-14세-미만-아동의-개인정보-처리에-관한-사항">04 14세 미만 아동의 개인정보 처리에 관한 사항</h3><p>회사는 원칙적으로 만14세 미만 아동에 대한 정보를 수집 및 이용하지 않습니다.</p></section><section id="section-5"><h3 id="05-개인정보-파기-절차-및-방법에-관한-사항">05 개인정보 파기 절차 및 방법에 관한 사항</h3><p>회사는 개인정보 보유기간의 경과, 처리목적 달성 등 개인정보가 불필요하게 되었을 때에는 지체없이 해당 개인정보를 파기합니다. 다만, 회사 내부 방침 또는 관계 법령에서 정한 보관기간이 있을 경우 일정 기간동안 보관 후 파기 됩니다.</p><p>※ 다른법령에 따라 보존하는 개인정보의 항목과 보존근거는 <a target="_blank" rel="noopener noreferrer nofollow" href="#section-3">"03 개인정보의 처리 및 보유기간"</a> 에서 확인 가능합니다.</p><p>개인정보 파기의 절차 및 방법은 다음과 같습니다.</p><ul><li><p>파기절차</p><p>파기기준에 도달한 개인정보는 자동화된 처리를 통해 삭제하며, 해당 삭제 과정은 전산 시스템을 통해 관리자에게 통보됩니다. 또한 종이 문서와 같은 비전자적 자료는 수동으로 세심하게 파기하고, 모든 처리 과정은 기록되고 관리되도록 합니다.</p></li></ul><ul><li><p>파기방법</p><p>종이에 출력된 개인정보는 분쇄기로 분쇄하거나 소각하여 파기하고, 전자적 파일 형태로 저장된 기록은 재생할 수 없는 기술적 방법을 사용하여 삭제합니다.</p></li></ul></section><section id="section-6"><h3 id="06-개인정보-제3자-제공">06 개인정보 제3자 제공</h3><p>회사는 이용자의 개인정보를 <a target="_blank" rel="noopener noreferrer nofollow" href="#section-1">"01 개인정보의 처리 목적"</a> 에서 명시한 범위 내에서만 처리하며, 이용자의 동의, 법률의 특별한 규정 등 개인정보 보호법 제17조 및 제18조에 해당하는 경우에만 개인정보를 제3자에게 제공하고 그 이외에는 이용자의 개인정보를 제3자에게 제공하지 않습니다.</p><p>1. 정보주체의 동의를 받아 개인정보를 제3자 제공하는 경우</p><p style="margin-left: 1em;">회사는 원활한 서비스 제공을 위해 다음의 경우 개인정보 보호법 제17조 제1항 제1호에 따라 이용자의 동의를 얻어 필요 최소한의 범위로만 제공합니다.</p><table style="min-width: 260px;"><colgroup><col style="width: 185px;"><col style="min-width: 25px;"><col style="min-width: 25px;"><col style="min-width: 25px;"></colgroup><tbody><tr><th colspan="1" rowspan="1" colwidth="185"><p style="text-align: center;">제공받는자</p></th><th colspan="1" rowspan="1"><p style="text-align: center;">제공 목적</p></th><th colspan="1" rowspan="1"><p style="text-align: center;">제공 항목</p></th><th colspan="1" rowspan="1"><p style="text-align: center;">보유 및 이용기간</p></th></tr><tr><td colspan="1" rowspan="7" colwidth="185"><p style="text-align: center;">(주)당근페이</p></td><td colspan="1" rowspan="1"><p>•회원 가입, 개인 식별, 본인 확인 등 회원 관리 <br><br>•인구통계학적 분석, 서비스 방문 및 이용기록의 분석, 지인 및 관심사에 기반한 이용자간 관계의 형성, 개인정보 및 관심사 등에 기반한 맞춤형 서비스 제공과 같은 기존 서비스의 개선 및 AI 기술 등을 결합한 신규 서비스 연구・개발 <br><br>•상품 또는 콘텐츠 판매·구매 시 결제 수단으로 당근페이 제공, 당근페이 송금 서비스 제공, 당근 서비스 이용 및 이벤트 참여 시 당근페이 리워드 지급 등 서비스 이용에 따른 혜택 제공 <br><br>•법령 및 이용약관을 위반하는 회원에 대한 이용 제한 조치, 부정 이용 행위를 포함하여 서비스의 원활한 운영에 지장을 주는 행위에 대한 방지 및 제재, 계정 도용 및 부정거래 방지 <br><br>•약관 개정 등 고지사항 전달, 분쟁조정을 위한 기록 보존, 이용자 문의 사항 또는 민원처리 등 이용자 보호 및 서비스 운영 <br><br>•보안, 프라이버시, 안전 측면에서 이용자가 안심하고 이용할 수 있는 서비스 이용환경 구축</p></td><td colspan="1" rowspan="1"><p>이용자식별값(*회원가입 시 자동 생성되는 임의의 값), 암호화된 동일인식별정보(CI), 암호화된 중복가입확인정보(DI), 성명, (휴대)전화번호, 생년월일, 성별, 통신사, 내/외국인 정보, 프로필사진, 닉네임, 고객 상담 내역, 검색이력, 거래기록, 방문기록, 콘텐츠 생성・열람・추천을 포함한 서비스 이용기록, 부정이용기록 , IP주소, 운영체제 정보・인터페이스・언어 설정과 같은 단말기 정보</p></td><td colspan="1" rowspan="1"><p>회원탈퇴시 까지<br><small>※ 단, 관계 법령 위반에 따른 수사·조사 등이 진행중인 경우에는 해당 수사·조사 종료 시 까지 보관하며, 그 외의 경우에는 내부규정 혹은 관계 법령에 따라 일정기간 보관</small></p></td></tr><tr><td colspan="1" rowspan="1"><p>자동차 매매 대금정산 및 해당 과정에서의 본인확인, 고객확인 의무 이행</p></td><td colspan="1" rowspan="1"><p>성명, (휴대)전화번호, 주소</p></td><td colspan="1" rowspan="1"><p>거래 종료일로부터 5년(특정 금융거래정보의 보고 및 이용 등에 관한 법률 제5조의4)</p></td></tr><tr><td colspan="1" rowspan="1"><p>하나은행 당근페이 제휴통장 개설을 위한 본인확인 및 정보검증•고객센터 이벤트 상담 및 고객 응대</p></td><td colspan="1" rowspan="1"><p>(휴대)전화번호</p></td><td colspan="1" rowspan="1"><p>계좌개설 후 파기</p></td></tr><tr><td colspan="1" rowspan="1"><p>당근마켓-당근페이 기능적 결합을 바탕으로 하는 서비스 제공을 위한 이용자 식별 및 부정이용방지</p></td><td colspan="1" rowspan="1"><p>이용자식별값, 프로필 정보(닉네임, 프로필사진)검색이력, 거래기록, 방문기록, 콘텐츠 생성・열람・추천을 포함한 서비스 이용기록, 부정이용기록 , IP주소, 운영체제 정보・인터페이스・언어 설정과 같은 단말기 정보</p></td><td colspan="1" rowspan="1"><p>회사 서비스 탈퇴 시</p></td></tr><tr><td colspan="1" rowspan="1"><p>서비스 내 주소 정보 입력 편의성 제고 및 당근-당근페이 통합 주소록 관리</p></td><td colspan="1" rowspan="1"><p>성명, (휴대)전화번호, 이용자식별값, 당근-당근페이 통합주소록에 저장된 주소(업데이트 내역 포함) 및 공동현관 비밀번호(해당 시)</p></td><td colspan="1" rowspan="1"><p>회사 서비스 탈퇴 시까지</p></td></tr><tr><td colspan="1" rowspan="1"><p>오늘의 미션 서비스 제공</p></td><td colspan="1" rowspan="1"><p>이용자식별값, 생년월일, 성별, IP, 광고식별자, 운영체제 정보・인터페이스・언어 설정과 같은 단말기 정보</p></td><td colspan="1" rowspan="1"><p>동의 철회 또는 회사 서비스 탈퇴 시</p></td></tr><tr><td colspan="1" rowspan="1"><p>바로구매 서비스(택배예약)</p></td><td colspan="1" rowspan="1"><p>성명, (휴대)전화번호, 주소</p></td><td colspan="1" rowspan="1"><p>당근페이 회원 탈퇴 시까지(관련 법령에 별도 규정이 있는 경우 그 기간을 따름)<br><small>※ ※ 택배예약 서비스 신청이 완료되지 않은 경우, 수집한 개인정보는 수집일로부터 7일 경과시 파기합니다.</small></p></td></tr><tr><td colspan="1" rowspan="1" colwidth="185"><p style="text-align: center;">농협은행(주)</p></td><td colspan="1" rowspan="1"><p>•안심거래 API서비스를 통한 가상계좌 생성 및 관리 <br>•입금 확인 및 거래 내역 관리 <br>•정산금 지급 처리 <br>•예치금관리 <br>•전자금융거래법상 거래 기록 관리</p></td><td colspan="1" rowspan="1"><p>•입금(환불)·정산계좌정보(은행명, 은행코드, 예금주명, 계좌번호), 구매자(판매자)정보(성명, 생년월일), 가상계좌번호, 거래정보(거래금액, 거래일시, 거래상태, 거래번호) <br>•거래관련정보 <br>-가상계좌 거래번호, 업체상품번호, 처리시각, 예치금 잔액, 정산금 잔액, 가상계좌 입금가능 금액, 발급일자, 예치금 반환 가능 금액, 거래 내역 목록</p></td><td colspan="1" rowspan="1"><p>「전자금융거래법」 제22조에 따라 거래 종료 후 5년간 보관</p></td></tr><tr><td colspan="1" rowspan="1" colwidth="185"><p style="text-align: center;"><a target="_blank" rel="noopener noreferrer nofollow" href="https://business.daangn.com/terms/privacy-commerce-list">당근 커머스 판매자</a><br><small>제공받는 자는 서비스 우측 상단 햄버거 버튼&gt;주문/배송 내역에서 확인할 수 있습니다.</small></p></td><td colspan="1" rowspan="1"><p>상품 배송 및 전달, 구매이력 확인, 고객문의 응대 및 서비스 지원</p></td><td colspan="1" rowspan="1"><p>•이용자 정보(닉네임), 배송지 정보(성명・주소・(휴대)전화번호), 공동현관 비밀번호(해당 시)</p></td><td colspan="1" rowspan="1"><p>거래완료 시까지<br><small>※ 관계 법령에 따라 별도로 보존할 필요성이 있는 경우 일정 기간 보관 후 파기</small></p></td></tr><tr><td colspan="1" rowspan="1" colwidth="185"><p style="text-align: center;"><a target="_blank" rel="noopener noreferrer nofollow" href="https://daangn.onelink.me/oWdR/cr0dqb7g">당근알바 사장님</a><br><small>제공받는 자는 서비스 내 &gt;지원내역에서 확인할 수 있습니다.</small></p></td><td colspan="1" rowspan="1"><p>지원서 접수 및 구인자의 채용 기준을 고려한 채용절차 제공</p></td><td colspan="1" rowspan="1"><p>•[기본정보] 성명, (휴대)전화번호, 성별, 생년월일, 지역정보, (해당 시) 비자 유형, (선택)알바 프로필 사진 [소개정보] 자기소개, 나의 장점, <span style="font-size: 15px;">추가정보, 포트폴리오 및 기타 첨부서류,</span> [학력정보] 학교명, 학력구분, 전공, 졸업 여부 [자격정보] 자격증명, 자격정보(자격정보, 자격증명, 자격증 이미지) [경력정보] 근무처, 담당 업무, 근무 기간</p></td><td colspan="1" rowspan="1"><p>지원 완료 후 3개월 까지<br><small>※ 단, 특정 이용자와 연결이 제한된 경우, 이용자의 기본정보(성명, 성별, 나이대, 지역정보)는 제한된 기간동안(최대 2년) 제공됨</small></p></td></tr><tr><td colspan="1" rowspan="1" colwidth="185"><p style="text-align: center;">자격증 발급기관<br><small>대한상공회의소, 한국교통안전공단</small></p></td><td colspan="1" rowspan="1"><p>자격증 취득자 본인확인, 취득 자격정보 및 진위 확인</p></td><td colspan="1" rowspan="1"><p>•암호화된 동일인식별정보(CI)</p></td><td colspan="1" rowspan="1"><p>자격증 취득자 본인 여부 확인 시까지</p></td></tr><tr><td colspan="1" rowspan="1" colwidth="185"><p style="text-align: center;">DB손해보험(주), (주)다성 보험중개</p></td><td colspan="1" rowspan="1"><p>이웃알바 보험(영문영업배상책임보험) 가입</p></td><td colspan="1" rowspan="1"><p>성명, 성별, 생년월일, (휴대)전화번호, 암호화된 이용자식별값, 보험계약과 연관된 피보험자의 구직정보, 보험계약정보(보험계약일자, 보험기간, 보상 및 보험료 납입 관련 정보, 증권번호)</p></td><td colspan="1" rowspan="1"><p>거래 종료 후 5년까지<br><small>※ 단, 거래종료 후 5년이 경과한 후에는 보험금지급, 금융사고조사, 보험사기 방지, 적발, 민원처리, 법령상 의무이행을 위한 경우에 한하여 보유이용하면 별도 보관됨</small></p></td></tr><tr><td colspan="1" rowspan="1" colwidth="185"><p style="text-align: center;"><a target="_blank" rel="noopener noreferrer nofollow" href="https://business.daangn.com/terms/privacy-reserve-list">당근예약 사업자, (주)헤렌</a></p></td><td colspan="1" rowspan="1"><p>사업자와 이용자의 원활한 예약진행, 고객상담 및 관리, 분쟁해결을 위함</p></td><td colspan="1" rowspan="1"><p>예약자 이름, 예약자 휴대폰번호, 예약자 프로필정보(닉네임, 프로필사진)</p></td><td colspan="1" rowspan="1"><p>예약완료 후 6개월까지</p></td></tr><tr><td colspan="1" rowspan="1" colwidth="185"><p style="text-align: center;"><a target="_blank" rel="noopener noreferrer nofollow" href="https://business.daangn.com/terms/privacy-has-service-list">전문가 업체</a></p></td><td colspan="1" rowspan="1"><p>이용자 요청내용에 따른 견적 서비스 제공</p></td><td colspan="1" rowspan="1"><p>•[방문필요 시]방문지 정보, 공동현관 비밀번호(해당 시) <br><br>•[물품운반 시] 출발/도착지주소, 요청자 프로필 정보</p></td><td colspan="1" rowspan="1"><p>이용자 요청에 따른 전문가 서비스 제공 완료 시까지</p></td></tr><tr><td colspan="1" rowspan="1" colwidth="185"><p style="text-align: center;">(주)크린토피아</p></td><td colspan="1" rowspan="1"><p>세탁 서비스의 진행(수거·배송) 및 이용내역 확인을 포함한 서비스 제공</p></td><td colspan="1" rowspan="1"><p>수거/배송지 정보(성명・주소・(휴대)전화번호, 공동현관문 비밀번호(해당 시))</p></td><td colspan="1" rowspan="1"><p>세탁 서비스 완료 시까지</p></td></tr><tr><td colspan="1" rowspan="1" colwidth="185"><p style="text-align: center;"><a target="_blank" rel="noopener noreferrer nofollow" href="https://business.daangn.com/terms/ads-lead-form">광고주</a></p></td><td colspan="1" rowspan="1"><p>신청 접수 및 결과안내를 포함한 절차의 진행과 서비스 제공</p></td><td colspan="1" rowspan="1"><p>성명, (휴대)전화번호, 주문정보(메뉴, 금액)</p></td><td colspan="1" rowspan="1"><p>신청 접수 후 60일</p></td></tr><tr><td colspan="1" rowspan="1" colwidth="185"><p style="text-align: center;"><a target="_blank" rel="noopener noreferrer nofollow" href="https://business.daangn.com/terms/privacy-pickup-list">포장주문 업체</a></p></td><td colspan="1" rowspan="1"><p>이용자의 요청에 따른 서비스 제공과 이를 수행하는 사업자간의 원활한 소통 및 고객·이력관리, 분쟁해결</p></td><td colspan="1" rowspan="1"><p>(휴대)전화번호, 주문정보(메뉴, 금액)<br><small>※ 안심번호를 선택할 경우 안심번호로 제공됨</small></p></td><td colspan="1" rowspan="1"><p>재화·서비스 공급 완료 및 요금 결제·정산·서비스 제공에 따른 CS대응 업무 처리 완료 시까지</p></td></tr><tr><td colspan="1" rowspan="1" colwidth="185"><p style="text-align: center;">(주)갓차모빌라이즈</p></td><td colspan="1" rowspan="1"><p>세차서비스의 진행(방문세차) 및 이용내역 확인을 포함한 서비스 제공</p></td><td colspan="1" rowspan="1"><p>(휴대)전화번호, 주소, 차량번호와 차종과 같은 차량정보, 차고 비밀번호와 같은 차량 보관장소 출입 시 필요정보</p></td><td colspan="1" rowspan="1"><p>세차 서비스 완료 후 3년</p></td></tr><tr><td colspan="1" rowspan="1" colwidth="185"><p style="text-align: center;"><a target="_blank" rel="noopener noreferrer nofollow" href="https://business.daangn.com/terms/privacy-time-talk-list">당근초특가 판매자</a></p></td><td colspan="1" rowspan="1"><p>이용자의 요청에 따른 서비스 또는 물품 제공과 이를 수행하는 사업자간의 원활한 소통 및 고객·이력관리, 분쟁해결</p></td><td colspan="1" rowspan="1"><p>이용자 정보(닉네임), (휴대)전화번호</p></td><td colspan="1" rowspan="1"><p>재화·서비스 공급 완료 또는 결제일로부터 1년<br>※ 관계 법령에 따라 별도로 보존할 필요성이 있는 경우 일정 기간 보관 후 파기</p></td></tr><tr><td colspan="1" rowspan="1" colwidth="185"><p style="text-align: center;">행정안전부(전자문서지갑 포털)</p></td><td colspan="1" rowspan="1"><p>전자증명서 발급</p></td><td colspan="1" rowspan="1"><p>[공통] 성명, 전자문서지갑 주소, 기기식별값<br>[증명서 별 제공 정보] 주민등록표등본 : 주소<br>주민등록표초본 : 주소<br><small> ※ (세대 구성원 초본 발급 시) 세대 구성원 성명, 구성원 주민등록번호</small><br>소득금액증명 : (휴대)전화번호, 사용목적</p></td><td colspan="1" rowspan="1"><p>전자증명서 서비스 이용목적 달성 시까지</p></td></tr></tbody></table><p>2. 회사는 아래의 경우 이용자의 동의 없이 관계기관에 개인정보를 제공할 수 있습니다.</p><p style="margin-left: 1em;">1) 「개인정보 보호법」 등 관계 법령이 정하는 경우.</p><p style="margin-left: 1em;">2) 정부 관계부처가 합동으로 발표한 「긴급상황 시 개인정보 처리 및 보호수칙」에 따라 재난, 감염병, 급박한 생명·신체 위험을 초래하는 사건·사고, 급박한 재산 손실 등의 긴급상황이 발생하는 경우( 「긴급상황 시 개인정보 처리 및 보호수칙」 에 대한 내용은 <a target="_blank" rel="noopener noreferrer nofollow" href="https://www.pipc.go.kr/np/cop/bbs/selectBoardArticle.do?bbsId=BS217&amp;nttId=7641">여기</a> 를 눌러 확인 하실 수 있습니다.</p></section><section id="section-7"><h3 id="07-추가적인-이용제공-판단-기준">07 추가적인 이용・제공 판단 기준</h3><p>회사는 이용자로부터 동의를 받은 후에 동의 받는 범위 혹은 관련 법령에서 정한 범위 내에서만 개인정보를 처리하며, 이용자의 동의 없이 개인정보를 추가적으로 이용・제공하지 않습니다. 추후에 추가적으로 처리하는 경우가 발생한다면 회사는 이용자에게 이를 미리 상세히 알릴 것입니다.</p></section><section id="section-8"><h3 id="08-개인정보-처리업무의-위탁">08 개인정보 처리업무의 위탁</h3><p>회사는 서비스의 원활한 제공을 위해 필요한 범위 내에서 개인정보의 처리를 일부 위탁하고 있습니다. 자세한 위탁사항은 아래의 링크를 통해 확인하실 수 있습니다.</p><a href="https://privacy-policy.daangn.com/domestic_processor/" target="_blank" rel="noopener noreferrer"><img src="daangn_privacy_assets/processor_domestic.png" alt="개인정보 처리업무 위탁현황(국내)"></a><p>회사는 개인정보 처리 업무를 위탁할 때, 수탁 업체가 개인정보 보호 관련 법령을 준수하도록 철저히 관리·감독하고 있습니다. 이를 위해 회사는 수탁 업체와의 계약 시 개인정보 보호 조항을 포함하고, 정기적인 감사와 평가를 통해 수탁 업체의 개인정보 처리 현황을 지속적으로 점검합니다. 또한 수탁 업체가 개인정보 보호에 필요한 기술적, 관리적, 물리적 조치를 이행할 수 있도록 지원하고 있습니다. 이를 통해 회사는 이용자의 개인정보가 안전하게 처리될 수 있도록 최선을 다하고 있습니다.</p><p>또한 회사는 생성형 AI를 활용하여 제공하는 서비스와 관련하여 수탁자와 기업용(Enterprise) 계약을 체결하여, 전송된 데이터가 수탁자의 대형언어모델(LLM) 학습에 무단으로 사용되지 않고 답변 생성 직후 즉각 또는 수탁자의 모니터링 목적 내에서만 최대 90일 동안 보관 후 파기되도록 하고 있습니다.</p><p>개인정보 처리 업무를 국외에 위탁하는 경우는 <a target="_blank" rel="noopener noreferrer nofollow" href="#section-9">"09 개인정보의 국외 이전"</a> 에서 안내 하고 있습니다.</p></section><section id="section-9"><h3 id="09-개인정보의-국외-이전">09 개인정보의 국외 이전</h3><p>회사는 서비스 이용자로부터 수집한 개인정보를 아래와 같이 국외에 위탁하고 있습니다. 서비스 제공을 위한 데이터 보관 및 인프라 운영을 위해 필수적으로 수반되는 업무들을 국외 서비스를 활용하여 제공하고 있으므로, 개인정보의 국외이전을 거부하실 경우 서비스 이용이 불가능합니다. 국외 이전을 원치 않으실 경우 앱(나의당근 &gt; 설정 &gt; 탈퇴하기)에서 회원탈퇴를 진행 또는 고객센터에 문의 주시기 바랍니다.</p><a href="https://privacy-policy.daangn.com/abroad_processor/" target="_blank" rel="noopener noreferrer"><img src="daangn_privacy_assets/abroad_processor.png" alt="개인정보 처리업무 위탁현황(국외)"></a></section><section id="section-10"><h3 id="10-개인정보-안전성-확보조치">10 개인정보 안전성 확보조치</h3><p>회사는 「개인정보 보호법」 제29조에 따라 다음과 같이 안전성 확보에 필요한 기술적, 관리적, 물리적 보호대책을 수립하여 운영하고 있습니다.</p><ul><li><p>개인정보 취급자의 최소화 및 교육</p><ul><li><p>개인정보를 처리하는 직원을 최소화 하며, 개인정보를 처리하는 모든 임직원들을 대상으로 개인정보보호 의무와 보안에 대한 정기적인 교육과 캠페인을 실시</p></li></ul></li><li><p>개인정보에 대한 접근 제한</p><ul><li><p>개인정보를 처리하는 시스템에 대한 접근권한의 부여, 변경, 말소 절차 수립 및 운영</p></li><li><p>침입탐지시스템을 이용하여 외부로부터의 무단 접근 통제</p></li></ul></li><li><p>접속기록의 보관 및 위변조 방지</p><ul><li><p>개인정보처리시스템에 접속한 기록(웹 로그, 요약정보 등)을 최소 2년 이상 보관 및 관리</p></li><li><p>접속 기록이 위변조 및 도난, 분실되지 않도록 보안기능 사용</p></li></ul></li><li><p>개인정보의 암호화</p><ul><li><p>법령에서 암호화를 요구하는 중요정보는 암호화 되어 저장 및 관리</p></li><li><p>중요한 데이터는 저장 및 전송 시 암호화하여 사용하는 등의 별도 보안기능을 사용</p></li></ul></li><li><p>해킹 등에 대비한 기술적 대책</p><ul><li><p>해킹이나 컴퓨터 바이러스 등에 의한 개인정보 유출 및 훼손을 막기 위하여 보안프로그램을 설치하고 주기적인 갱신·점검</p></li><li><p>외부로부터 접근이 통제된 구역에 시스템을 설치하고 기술적/물리적으로 감시 및 차단</p></li><li><p>네트워크 트래픽의 통제(Monitoring)는 물론 불법적으로 정보를 변경하는 등 비정상적 행위를 탐지</p></li></ul></li></ul></section><section id="section-11"><h3 id="11-개인정보-자동-수집-장치의-설치운영-및-그-거부에-관한-사항">11 개인정보 자동 수집 장치의 설치・운영 및 그 거부에 관한 사항</h3><p>회사는 이용자에게 개별적인 맞춤서비스를 제공하기 위해 이용정보를 저장하고 수시로 불러오는 개인정보 자동 수집 장치인 '쿠키(cookie)'를 사용하며, 이용자는 이를 원치 않을 경우 아래를 참고하셔서 쿠키를 차단 할 수 있습니다.</p><ul style="margin-left: 1em;"><li><p>쿠키는 웹사이트를 운영하는데 이용되는 서버(http)가 이용자의 브라우저에게 보내는 소량의 정보이며 이용자의 PC 또는 모바일에 저장되며, 웹사이트 접속 시 이용자의 브라우저에서 서버로 자동 전송됩니다.</p></li><li><p>이용자는 쿠키 설치에 대한 선택권을 가지고 있습니다. 따라서 이용자는 웹 브라우저에서 옵션을 설정을 통해 쿠키허용, 차단 등 설정을 할 수 있습니다. 쿠키 저장을 거부할 경우 쿠키를 사용 하는 일부 기능이 정상적으로 작동하지 않을 수 있습니다.</p></li><li><p>쿠키 설치 허용 여부를 지정하는 방법은 아래의 내용을 참고 할 수 있습니다. <br><a target="_blank" rel="noopener noreferrer nofollow" href="/fragments/cookie_popup.html"><strong>쿠키 설치허용/차단 방법 보기</strong></a></p></li></ul><p>회사는 서비스 이용과정에서 이용자에게 최적화된 맞춤형 서비스 및 혜택 온라인 맞춤형 광고 등을 제공하기 위하여 쿠키를 활용하여 개인을 식별하는 방식으로 다음과 같은 행태정보를 수집합니다. 행태정보는 서비스 이용과정에서 자동 생성되어 수집되거나 신뢰할 수 있는 제휴사로부터 제공받을 수 있습니다.</p><table style="min-width: 752px;"><colgroup><col style="width: 322px;"><col style="width: 355px;"><col style="min-width: 25px;"><col style="min-width: 25px;"><col style="min-width: 25px;"></colgroup><tbody><tr><th colspan="1" rowspan="1" colwidth="322"><p style="text-align: center;">법적근거</p></th><th colspan="1" rowspan="1" colwidth="355"><p style="text-align: center;">수집하는 행태정보의 항목</p></th><th colspan="1" rowspan="1"><p style="text-align: center;">수집방법</p></th><th colspan="1" rowspan="1"><p style="text-align: center;">수집 목적</p></th><th colspan="1" rowspan="1"><p style="text-align: center;">보유 이용기간 및 정보 처리 방법</p></th></tr><tr><td colspan="1" rowspan="1" colwidth="322"><p>「개인정보 보호법」 제15조 (개인정보의 수집·이용) 제1항 제1호('이용자의 동의')</p></td><td colspan="1" rowspan="1" colwidth="355"><p>검색이력, 거래기록, 방문기록, 콘텐츠 생성・열람・추천을 포함한 서비스 이용기록, IP주소, 운영체제 정보・인터페이스・언어 설정과 같은 단말기 정보, 광고식별자</p></td><td colspan="1" rowspan="1"><p>당근 웹/모바일 앱 이용 시 자동 수집</p></td><td colspan="1" rowspan="1"><p>관심사・성향・위치에 기반한 콘텐츠 및 맞춤서비스 제공(광고 포함)</p></td><td colspan="1" rowspan="1"><p>회원탈퇴시 까지</p></td></tr></tbody></table><ul style="margin-left: 1em;"><li><p>회사는 온라인 맞춤형 광고 등에 필요한 최소한의 행태정보만을 수집하며, 사상, 신념, 가족 및 친인척관계, 학력 병력, 기타 사회활동 경력 등 개인의 권리 이익이나 사생활을 뚜렷하게 침해할 우려가 있는 민감한 행태정보를 수집하지 않습니다.</p></li><li><p>회사는 모바일 앱에서 온라인 맞춤형 광고를 위하여 광고식별자를 수집/이용 합니다. 이용자는 아래와 같이 모바일 단말기의 설정 변경을 통해 앱의 맞춤형 광고를 차단·허용 할 수 있습니다. <br><a target="_blank" rel="noopener noreferrer nofollow" href="/fragments/ad_popup.html"><strong>광고 차단/허용 설정 방법 보기</strong></a></p></li><li><p>또한 회사는 효과적인 서비스 이용 지표 분석과 같이 통계 데이터 분석을 위한 외부 툴(SDK 등)을 이용하는 과정에서 이용자의 행태정보를 위탁하는 경우가 있습니다. 행태정보 처리를 원하시지 않을 경우에는 아래의 방식을 통해 행태정보 처리를 거부할 수 있습니다.</p><ul><li><p>iOS : 설정 &gt; 앱 &gt; 당근 &gt; 추적 허용 off 또는 설정 &gt; 개인정보 보호 및 보안 &gt; 추적 &gt; 앱이 추적을 요청하도록 허용 OFF</p></li><li><p>Android : 구글 &gt; 설정 &gt; 개인 정보 보호 및 안전 &gt; 광고 개인 최적화 &gt; 개인 맞춤 광고 사용 중지</p><table style="min-width: 50px;"><colgroup><col style="min-width: 25px;"><col style="min-width: 25px;"></colgroup><tbody><tr><th colspan="1" rowspan="1"><p style="text-align: center;">수탁업체</p></th><th colspan="1" rowspan="1"><p style="text-align: center;">위탁업무 내용</p></th></tr><tr><td colspan="1" rowspan="1"><p>Google LLC, AppsFlyer Ltd.</p></td><td colspan="1" rowspan="1"><p>서비스 이용 지표 분석</p></td></tr></tbody></table></li></ul></li></ul><p>이용자는 아래의 연락처로 행태정보와 관련하여 궁금한 사항과 거부권 행사, 피해 신고 접수 등을 문의 할 수 있습니다.</p><ul style="margin-left: 1em;"><li><p>개인정보 관련 고객상담 접수 연락처</p><ul><li><p>이메일 : privacy@daangnservice.com</p></li><li><p>고객센터 문의 : 나의당근 &gt; 자주묻는 질문 &gt; 고객센터 문의하기</p></li></ul></li></ul></section><section id="section-12"><h3 id="12-이용자-및-법정대리인의-권리의무-및-행사방법">12 이용자 및 법정대리인의 권리・의무 및 행사방법</h3><p>회사는 이용자의 권리를 존중하며, 이용자는 개인정보 열람・정정・삭제・처리정지 및 철회 요구, 자동화된 결정에 대한 거부 또는 설명 요구 등의 권리행사(이하 "권리행사"라 함)를 할 수 있습니다. 세부적인 사항은 아래를 참고해 주시기 바랍니다.</p><ul style="margin-left: 1em;"><li><p>권리행사는 회사에 대해 「개인정보 보호법 시행령」 제41조 제1항에 따라 서면, 전자우편, 모사전송(FAX) 등을 통하여 하실 수 있으며, 회사는 이에 대해 지체없이 조치하겠습니다.</p><ul><li><p>이용자는 서비스 내 설정기능을 통해 직접 개인정보를 조회・변경 할 수 있으며 가입해지(동의철회)를 위해서 아래의 경로를 따를 수 있습니다.</p><ul><li><p>개인정보 조회 : 나의당근 &gt; 앱설정 &gt; 계정/정보 관리</p></li><li><p>개인정보 변경 : 나의당근 &gt; 앱설정 &gt; 계정/정보 관리</p></li><li><p>동의철회 : 나의당근 &gt; 설정 &gt; 탈퇴하기</p></li></ul></li><li><p>혹은 운영자에게 이메일이나 고객센터로 문의주시면 지체없이 조치해 드리도록 하겠습니다.</p></li></ul></li><li><p>권리행사는 이용자의 법정대리인이나 위임을 받은 자 등 대리인을 통해서도 권리행사를 하실 수 있으며, 이 경우 「개인정보 처리 방법에 관한 고시」 별지 제11호 서식에 따른 위임장을 제출하여야 합니다.</p></li><li><p>개인정보 열람 및 처리정지 요구는 「개인정보 보호법」 제35조 제4항, 제37조 제2항에 의하여 이용자의 권리가 제한될 수 있으며, 개인정보의 정정 및 삭제 요구 시 다른 법령에서 그 개인정보가 수집 대상으로 명시되어 있는 경우에는 삭제해 드릴 수 없습니다.</p></li><li><p>이용자는 자동화된 결정에 대한 거부 또는 설명을 요구할 수 있습니다. 다만, 회사는 자동화된 결정을 하지않습니다. 자동화된 결정이 발생하는 경우 그 기준과 절차, 개인정보가 처리되는 방식, 거부 또는 설명 요구절차를 공개하겠습니다.</p></li><li><p>회사는 이용자 권리에 따른 열람의 요구 정정 삭제의 요구 처리정지의 요구 시 요구를 한 이용자가 본인이거나 대리인인지 확인합니다.</p></li><li><p>이용자는 위에서 설명한 방법을 통해 직접 권리행사를 하거나 아래의 연락처를 통해 권리행사를 하실 수 있습니다. 회사는 이용자의 권리 행사가 신속하게 처리되도록 노력하겠습니다.</p><ul><li><p>개인정보 관련 고객상담 접수 연락처</p><ul><li><p>이메일 : privacy@daangnservice.com</p></li><li><p>고객센터 문의 : 나의당근 &gt; 자주묻는 질문 &gt; 고객센터 문의하기</p></li></ul></li></ul></li></ul></section><section id="section-13"><h3 id="13-개인정보-책임자-및-담당부서">13 개인정보 책임자 및 담당부서</h3><p>이용자가 서비스를 이용하면서 발생하는 모든 개인정보보호 관련 문의, 불만, 조언이나 기타 사항은 개인정보 보호책임자 및 담당부서로 연락해 주시기 바랍니다. 회사는 이용자 목소리에 귀 기울이고 신속하고 충분한 답변을 드릴 수 있도록 최선을 다하겠습니다.</p><ul style="margin-left: 1em;"><li><p>이름 : 최진원</p></li><li><p>직위 : 개인정보 보호책임자</p></li><li><p>연락처 : privacy@daangnservice.com</p></li></ul></section><section id="section-14"><h3 id="14-개인위치정보의-처리">14 개인위치정보의 처리</h3><p>회사는 서비스에서 제공하는 위치기반서비스와 관련하여 「위치정보의 보호 및 이용 등에 관한 법률」에 따라 이용자의 개인위치정보를 안전하게 관리하고 처리합니다.</p><p>1. 개인위치정보 수집 및 이용현황</p><p style="margin-left: 1em;">회사에서 수집하는 위치정보의 대부분은 하이퍼로컬 서비스(동네 생활권에 기반을 둔 서비스를 의미합니다)제공을 목적으로 이용되며, 회사는 위치정보를 보관하지 않고 일회성으로 이용한 후 파기합니다. 단, 일부 서비스의 경우 이용자에게 수집한 정보 혹은 이용자가 작성한 콘텐츠와 함께 보관됩니다.</p><p style="margin-left: 1em;">회사는 개인위치정보의 수집, 이용 또는 제공 목적을 달성하거나, 서비스를 종료한 때, 이용자가 회원 탈퇴 등 방법으로 개인위치정보의 이용에 대한 동의를 철회하는 때에는 당해 개인위치정보를 지체 없이 파기합니다. 다만, 「위치정보의 보호 및 이용 등에 관한 법률」에 달리 정함이 있거나 다른 법령에 의한 보관이 필요한 경우 해당 기간만큼 보관합니다.</p><p style="margin-left: 1em;">각 서비스의 구분에 따른 개인위치정보 처리 목적 및 내용은 아래와 같습니다.</p><table style="min-width: 50px;"><colgroup><col style="min-width: 25px;"><col style="min-width: 25px;"></colgroup><tbody><tr><th colspan="1" rowspan="1"><p style="text-align: center;">서비스 구분</p></th><th colspan="1" rowspan="1"><p style="text-align: center;">서비스 목적 및 내용</p></th></tr><tr><td colspan="1" rowspan="1"><p style="text-align: center;">동네 인증</p></td><td colspan="1" rowspan="1"><ul><li><p>이용자의 위치가 특정 구역 내지 행정동 단위에 속하는지 여부를 확인하여 '내 동네' 인증</p><p>(예시: 인증된 '내 동네'를 바탕으로 중고물품 거래, 동네 정보 공유 서비스 제공 등)</p></li></ul></td></tr><tr><td colspan="1" rowspan="1"><p style="text-align: center;">서비스 이용 편의 제공</p></td><td colspan="1" rowspan="1"><ul><li><p>이용자의 위치정보를 지도 서비스에 표시하여, 서비스 이용의 편의성 증진</p><p>(예시: 중고거래 희망장소 표시, 동네가게 거리 및 정보 확인, 기타 지도 연동 서비스 이용 시, 이용자의 위치정보에 기반한 서비스 편의 제공 등)</p></li><li><p>이용자의 위치정보를 활용하여 게시글 검색이나 작성, 등록에 있어 추천 내지 자동완성 등 서비스 이용의 편의성 증진</p><p>(예시: 이용자가 게시하는 콘텐츠에 포함된 위치정보를 추출 및 활용하여, 장소 등록이나 후기를 비롯한 각종 게시글 작성 시 추천 내지 자동완성 기능을 제공함으로써 서비스 편의 제공 등)</p></li></ul></td></tr><tr><td colspan="1" rowspan="1"><p style="text-align: center;">서비스 내 콘텐츠 제공 내지 추천</p></td><td colspan="1" rowspan="1"><ul><li><p>이용자의 위치정보 혹은 이것이 특정 구역 내지 행정동 단위에 속하는지 여부를 기반으로, 앱 내 다양한 콘텐츠 제공 내지 추천에 활용 <br>(예시: 중고거래 내지 직거래 관련 근거리 매물 추천, 구인구직 관련 근거리 게시글 추천, 동네생활 및 커뮤니티 관련 근거리 콘텐츠 추천, 기타 검색결과 내지 광고성 소재 추천에 활용 등)</p></li></ul></td></tr><tr><td colspan="1" rowspan="1"><p style="text-align: center;">서비스 제공 내용 고도화</p></td><td colspan="1" rowspan="1"><ul><li><p>이용자의 위치정보에 대한 통계적 분석을 통해, 관심 지역, 활동 구역, 추정 경로 등을 정의하고, 이를 토대로 검색, 추천, 콘텐츠 표시 등 각종 응용 서비스 제공 및 고도화</p></li></ul></td></tr></tbody></table><p>2. 개인위치정보 수집/이용/제공사실 확인자료의 보유근거 및 보유기간</p><p style="margin-left: 1em;">회사는 「위치정보의 보호 및 이용 등에 관한 법률」 제16조 제2항에 따라 위치정보 수집∙이용∙제공 사실 확인자료를 위치정보시스템에 자동으로 기록·보존하고, 해당 자료를 6개월 이상 보관합니다.</p><p>3. 개인위치정보 파기 절차 및 방법</p><p style="margin-left: 1em;">개인위치정보의 처리목적이 달성된 경우, 회사는 개인위치정보를 재생이 불가능한 방법으로 안전하게 파기하고 있습니다. 전자적 파일 형태는 복구 및 재생이 불가능한 기술적인 방법으로 파기하며, 출력물 등은 분쇄하거나 소각하는 방식으로 파기합니다.</p><p>4. 개인위치정보 이용 또는 제공</p><p style="margin-left: 1em;">회사는 이용자가 지정하는 제3자에게 개인위치정보를 제공하는 경우, 개인위치정보를 제공받는 자 및 제공목적을 사전에 회원에게 고지하고 동의를 받습니다.</p><p style="margin-left: 1em;">이용자가 외부 제휴사의 서비스를 이용하기 위하여 개인위치정보 제공에 직접 동의한 경우, 관계 법령에 의거해 개인위치정보 제출 의무가 발생한 경우, 이용자의 생명이나 안전에 급박한 위험이 확인되어 이를 해소하기 위한 경우에 한하여 개인위치정보를 제공합니다.</p><p style="margin-left: 1em;">개인위치정보를 회원이 지정하는 제3자에게 제공하는 경우에는 개인위치정보를 수집한 해당 통신 단말장치 또는 전자우편주소 등으로 매회 이용자에게 제공받는 자, 제공일시 및 제공목적을 즉시 통보합니다.</p><p style="margin-left: 1em;">제3자 제공에 대한 통보와 관련하여 보다 자세한 사항은 당근 위치기반서비스 이용약관에 따릅니다.</p><p style="margin-left: 1em;">다만, 현재 회사는 위치정보를 제3자에게 제공하는 경우가 없습니다.</p><p>5. 8세 이하의 등의 보호의무자 권리·의무 및 그 행사방법</p><p style="margin-left: 1em;">회사는 원칙적으로 8세 이하의 아동에 대한 개인정보 및 개인위치정보 또한 수집・이용하지 않습니다. 다만, 「위치정보의 보호 및 이용 등에 관한 법률」 에서 정한 바가 있기에 관련 내용을 따릅니다.</p><p style="margin-left: 1em;">회사는 아래의 경우에 해당하는 자(이하 "8세 이하의 아동 등")의 「위치정보의 보호 및 이용 등에 관한 법률」 제26조 제1항의 규정에 해당하는 자(이하 "보호의무자")가 8세 이하의 아동 등의 생명 또는 신체 보호를 위하여 개인위치정보의 수집, 이용 또는 제공에 동의하는 경우에는 본인의 동의가 있는 것으로 봅니다.</p><ul style="margin-left: 1em;"><li><p>8세 이하의 아동</p></li><li><p>피성년후견인</p></li><li><p>「장애인복지법」 제2조 제2항 제2호의 규정에 따른 정신적 장애를 가진자로서 「장애인고용촉진 및 직업재활법」 제2조 제2호의 규정에 따라 중증장애인에 해당하는자(「장애인복지법」 제32조의 규정에 따라 장애인등록을 한 자에 한합니다.)</p></li></ul><p style="margin-left: 1em;">8세 이하의 아동 등의 생명 또는 신체의 보호를 위하여 개인위치정보의 수집, 이용 또는 제공에 동의를 하고자 하는 보호의무자는 서면동의서에 보호의무자임을 증명하는 서면을 첨부하여 회사에 제출하여야 합니다.</p><p style="margin-left: 1em;">보호의무자는 8세 이하의 아동 등의 개인위치정보 수집, 이용 또는 제공에 동의하는 경우 개인위치이용자 권리의 전부를 행사할 수 있습니다.</p><p>6. 개인위치정보 보호책임자에 관한 사항</p><p style="margin-left: 1em;">이용자가 서비스를 이용하면서 발생하는 모든 개인위치정보보호 관련 문의, 불만, 조언이나 기타 사항은 위치정보 보호책임자 및 담당부서로 연락해 주시기 바랍니다. 회사는 이용자 목소리에 귀 기울이고 신속하고 충분한 답변을 드릴 수 있도록 최선을 다하겠습니다</p><ul style="margin-left: 1em;"><li><p>이름 : 이원규</p></li><li><p>직위 : 위치정보관리책임자</p></li><li><p>연락처 : privacy@daangnservice.com</p></li></ul></section><section id="section-15"><h3 id="15-이용자의-권익침해에-대한-구제방법">15 이용자의 권익침해에 대한 구제방법</h3><p>이용자는 아래의 기관에 개인정보 침해에 대한 피해구제, 상담 등을 문의하실 수 있습니다.</p><ul><li><p>개인정보 침해신고센터 (한국인터넷진흥원 운영)</p><ul><li><p>소관업무 : 개인정보 침해사실 신고, 상담 신청</p></li><li><p>홈페이지 : <a target="_blank" rel="noopener noreferrer nofollow" href="https://privacy.kisa.or.kr">privacy.kisa.or.kr</a></p></li><li><p>전화 : (국번없이) 118</p></li><li><p>주소 : 전라남도 나주시 진흥길 9 한국인터넷진흥원</p></li></ul></li><li><p>개인정보 분쟁조정위원회</p><ul><li><p>소관업무 : 개인정보 분쟁조정신청, 집단분쟁조정 (민사적 해결)</p></li><li><p>홈페이지 : <a target="_blank" rel="noopener noreferrer nofollow" href="https://www.kopico.go.kr">www.kopico.go.kr</a></p></li><li><p>전화 : 1833-6972</p></li><li><p>주소 : 서울특별시 종로구 세종대로 209 정부서울청사 12층</p></li></ul></li><li><p>대검찰청 사이버수사과</p><ul><li><p>(국번없이) 1301, privacy@spo.go.kr(<a target="_blank" rel="noopener noreferrer nofollow" href="https://www.spo.go.kr">www.spo.go.kr</a>)</p></li></ul></li><li><p>경찰청 사이버수사국</p><ul><li><p>(국번없이) 182 (사이버범죄 신고시스템(<a target="_blank" rel="noopener noreferrer nofollow" href="https://ecrm.police.go.kr">ECRM</a>))</p></li></ul></li></ul><p>회사는 이용자의 개인정보자기결정권을 보장하고, 개인정보침해로 인한 상담 및 피해구제를 위해 노력하고 있으며, 신고나 상담이 필요한 경우 <span data-popover="개인정보 관련 고객상담 접수 연락처|•이메일 : privacy@daangnservice.com|•고객센터 문의 : 나의당근 &gt; 자주묻는 질문 &gt; 고객센터 문의하기" class="popover-trigger">개인정보관련 고객상담 접수 부서</span>로 연락해 주시기 바랍니다.</p></section><section id="section-16"><h3 id="16-회사의-추가적인-개인정보-보호노력">16 회사의 추가적인 개인정보 보호노력</h3><p>회사는 이용자의 개인정보를 안전하게 관리하기 위하여 최선을 다하고 있으며, 「개인정보 보호법」에서 요구하는 안전성 확보 조치 외에도 추가적인 개인정보 보호노력을 기울이고 있습니다.</p><p>1. 개인정보 영향평가</p><p style="margin-left: 1em;">회사는 회사 내에 정보보호 전담조직과 개인정보보호 전담 직무를 구성하여 운영하고 있으며, 새로운 서비스나 시스템을 도입할 때 개인정보 영향평가를 실시합니다. 이를 통해 개인정보 처리로 인해 발생할 수 있는 위험 요소를 사전에 식별하고, 필요한 보호 조치를 마련하여 잠재적 위험을 최소화합니다. 개인정보 영향평가는 정기적으로 재평가되며, 이를 통해 지속적인 개선 활동을 진행합니다.</p><p>2. 국내・외 인증 취득</p><p style="margin-left: 1em;">개인정보 보호 수준을 인정받기 위해 다양한 국내외 인증을 취득하고 있습니다. 대표적으로 개인정보 보호 관련 인증인 ISMS-P(정보보호 및 개인정보보호 관리체계) 인증을 취득하여 회사의 개인정보 보호 체계가 국내 표준에 부합함을 증명하고 있습니다. 또한, ISO/IEC 27001(정보보호 관리체계) 인증을 획득하여 회사의 정보보호 체계가 국제 표준에도 적합함을 증명하여 높은 수준의 개인정보 보호 체계를 유지하고 있습니다.</p><p>3. 대외 기관과의 협력 활동</p><p style="margin-left: 1em;">회사는 외부 전문가로 구성한 '프라이버시 정책 및 이용자 보호위원회'를 운영하며, 폭넓은 의견을 수렴하여 이용자 개인정보보호 정책에 반영하고 있습니다.</p><p style="margin-left: 1em;">개인정보 보호를 위해 다양한 대외 기관과 협력 활동을 펼치고 있습니다. 대표적으로 개인정보보호위원회와 함께 개인정보 보호 실천문화 캠페인을 진행하였으며, 이를 통해 서비스 이용 시 발생할 수 있는 개인정보의 부적절한 공개나 접근 이슈에 대해 이용자 스스로 보호할 수 있도록 하였습니다.</p></section><section id="section-17"><h3 id="17-개인정보처리방침의-시행-및-변경에-관한-사항">17 개인정보처리방침의 시행 및 변경에 관한 사항</h3><p>회사는 정부의 정책 또는 관계 법령, 서비스의 변경사항을 반영하기 위한 목적으로 개인정보처리방침을 수정할 수 있으며, 이때 최소 7일 전부터 공지사항을 통해 변경 사항을 고지하겠습니다.</p><p>이 개인정보 처리방침은 2026년 7월 7일부터 시행됩니다.</p><p>이전 개인정보처리방침은 아래에서 확인 하실 수 있습니다.</p></section>
+</div>
+<div class="policy-actions">
+  <div class="policy-version-select">
+    <label>이전 개인정보 처리방침</label>
+    <select onchange="var d=this.value;if(d&&d!=='__preview__')location.href='/privacy-static/previous_pp/'+d.replace(/-/g,'')+'/';"
+      style="font-size:13px;padding:6px 12px;border:1px solid #ccc;border-radius:4px;background:#fff;color:#333;cursor:pointer">
+      <option value="__preview__" selected>선택하세요</option>
+      
+    </select>
+  </div>
+</div>
+</main>
+<div id="modalContainer"></div>
+<script>
+(function(){
+  // 팝업/정보툴팁: .popover-trigger[data-popover](클릭) 또는 .info-tip[data-tip](hover) 내용을 표시.
+  //   내용은 | 로 줄 구분, **볼드** 지원. (텍스트는 이스케이프 후 strong/br 만 주입 → XSS 안전)
+  // 저장된 HTML(에디터 미니툴바 출력)을 허용 태그만 남기고 렌더 (script/on* 등 제거 → XSS 안전)
+  function _sanitizeTip(html){
+    var box=document.createElement('div'); box.innerHTML=html||'';
+    var allow={P:1,BR:1,STRONG:1,B:1,EM:1,U:1,SPAN:1,UL:1,OL:1,LI:1};
+    (function walk(node){
+      Array.prototype.slice.call(node.childNodes).forEach(function(el){
+        if(el.nodeType===1){
+          if(!allow[el.tagName]){ while(el.firstChild) node.insertBefore(el.firstChild,el); node.removeChild(el); return; }
+          var keep=(el.tagName==='SPAN')?((el.getAttribute('style')||'').match(/font-size:\s*[\d.]+px/i)):null;
+          Array.prototype.slice.call(el.attributes).forEach(function(a){ el.removeAttribute(a.name); });
+          if(keep) el.setAttribute('style', keep[0]);
+          walk(el);
+        } else if(el.nodeType!==3){ node.removeChild(el); }
+      });
+    })(box);
+    return box.innerHTML;
+  }
+  function buildPopover(trigger){
+    var pop=document.createElement('span'); pop.className='contact-popover';
+    pop.innerHTML=_sanitizeTip(trigger.getAttribute('data-popover')||trigger.getAttribute('data-tip')||'');
+    trigger.classList.add('contact-popover-wrap'); trigger.appendChild(pop); return pop;
+  }
+  function _showPop(pop){
+    pop.classList.add('show'); pop.style.left='0'; pop.style.right='auto';
+    var r=pop.getBoundingClientRect(), vw=document.documentElement.clientWidth;
+    if(r.right>vw-8){ pop.style.left='auto'; pop.style.right='0'; }
+  }
+  // 정보 아이콘(ⓘ)은 마우스오버로 표시/숨김
+  document.addEventListener('mouseover',function(ev){
+    var tip=ev.target.closest?ev.target.closest('.info-tip'):null; if(!tip) return;
+    var pop=tip.querySelector('.contact-popover')||buildPopover(tip);
+    document.querySelectorAll('.contact-popover.show').forEach(function(p){if(p!==pop)p.classList.remove('show');});
+    _showPop(pop);
+  });
+  document.addEventListener('mouseout',function(ev){
+    var tip=ev.target.closest?ev.target.closest('.info-tip'):null; if(!tip) return;
+    if(!ev.relatedTarget||!tip.contains(ev.relatedTarget)){
+      var pop=tip.querySelector('.contact-popover'); if(pop) pop.classList.remove('show');
+    }
+  });
+  function showModal(id){ var m=document.getElementById(id); if(m) m.style.display='block'; }
+  window.showCookiePopup=function(){ showModal('cookieModal'); };
+  window.showAdPopup=function(){ showModal('adModal'); };
+  window.closeCookiePopup=function(){ var m=document.getElementById('cookieModal'); if(m) m.style.display='none'; };
+  window.closeAdPopup=function(){ var m=document.getElementById('adModal'); if(m) m.style.display='none'; };
+  document.addEventListener('click',function(ev){
+    var t=ev.target;
+    var trig=t.closest?t.closest('.popover-trigger,.info-tip'):null;
+    if(trig){ ev.preventDefault();
+      var pop=trig.querySelector('.contact-popover')||buildPopover(trig);
+      var open=pop.classList.contains('show');
+      document.querySelectorAll('.contact-popover.show').forEach(function(p){p.classList.remove('show');});
+      if(!open) _showPop(pop);
+      return; }
+    var link=t.closest?t.closest('a[href]'):null;
+    if(link){ var href=link.getAttribute('href')||'';
+      if(href.indexOf('fragments/cookie_popup.html')!==-1){ ev.preventDefault(); showModal('cookieModal'); return; }
+      if(href.indexOf('fragments/ad_popup.html')!==-1){ ev.preventDefault(); showModal('adModal'); return; } }
+    if(t.classList&&t.classList.contains('modal')){ t.style.display='none'; }
+    if(!(t.closest&&t.closest('.popover-trigger,.info-tip'))){
+      document.querySelectorAll('.contact-popover.show').forEach(function(p){p.classList.remove('show');}); }
+  });
+  document.addEventListener('DOMContentLoaded',function(){
+    var box=document.getElementById('modalContainer');
+    if(box){ ['fragments/cookie_popup.html','fragments/ad_popup.html'].forEach(function(u){
+      fetch(u,{cache:'no-store'}).then(function(r){return r.ok?r.text():'';}).then(function(h){
+        if(h){ var d=document.createElement('div'); d.innerHTML=h; box.appendChild(d); } }).catch(function(){}); }); }
+    var sel=document.querySelector('.policy-version-select select'); if(!sel) return;
+    fetch('data/previous_policies.json',{cache:'no-store'}).then(function(r){return r.text();}).then(function(t){
+      var list; try{list=JSON.parse(t);}catch(e){list=JSON.parse(t.replace(/,\s*([}\]])/g,'$1'));}
+      if(!Array.isArray(list)) return;
+      sel.innerHTML='<option value="" selected>선택하세요</option>';
+      list.forEach(function(it){ if(!it||!it.url||it.url==='CURRENT') return; var o=document.createElement('option'); o.value=it.url; o.textContent=it.label||it.url; sel.appendChild(o); });
+      sel.onchange=function(){ var v=this.value; if(v) location.href=v; };
+    }).catch(function(){});
+  });
+})();
+</script>
+</body>
+</html>
