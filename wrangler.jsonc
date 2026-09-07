@@ -25,6 +25,9 @@
     "USER_AGENT": "POLICYLOG/0.1 (+https://policylog.example/bot; contact@policylog.example)",
     // ENFORCE = skip documents robots.txt disallows. ADVISORY = record the verdict, do not gate on it (S24.4).
     // Both modes keep: one User-Agent, the request-interval caps, and any explicit `User-agent: POLICYLOG` refusal.
-    "ROBOTS_MODE": "ADVISORY"
+    "ROBOTS_MODE": "ADVISORY",
+    // Google login. Set the OAuth client id here and `wrangler secret put GOOGLE_CLIENT_SECRET`; both empty = email sign-up only.
+    // Authorized redirect URI in Google Cloud Console: https://<your host>/auth/google/callback
+    "GOOGLE_CLIENT_ID": ""
   }
 }

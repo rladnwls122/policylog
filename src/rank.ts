@@ -39,6 +39,9 @@ export function rankFeatured(docs: DocumentRow[], s: Signals, n = 3): DocumentRo
   return out
 }
 
+/** 비회원에게 보여주는 카드 수. 나머지는 가입해야 보인다 — 상위 세 장은 누구에게나 보인다. */
+export const PREVIEW_CARDS = 6
+
 /** 하단 그리드 순서. 수집 중 → 준비 중 → 못 가져옴, 같은 상태 안에서는 최근 변경이 새로운 순. */
 export function orderForGrid(docs: DocumentRow[], s: Signals): DocumentRow[] {
   return [...docs].sort((a, b) =>

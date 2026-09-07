@@ -2,11 +2,12 @@
 import type { FC, PropsWithChildren } from 'hono/jsx'
 import { raw } from 'hono/html'
 import { diffWords } from 'diff'
-import type { DocumentRow, ChangeListRow, ChangeRow } from './db'
+import type { DocumentRow, ChangeListRow, ChangeRow, UserRow } from './db'
 import type { ChangeSection, TableRowChange } from './diff'
 import type { PublicSection } from './public'
 import { excerpt, focusOnChange } from './public'
-import { type Signals, orderForGrid, searchKey } from './rank'
+import { type Signals, orderForGrid, searchKey, PREVIEW_CARDS } from './rank'
+import { MIN_PASSWORD } from './auth'
 
 // 디자인 체계 — 뉴모피즘(soft UI).
 //
@@ -290,6 +291,73 @@ footer{max-width:var(--rail);margin:88px auto 0;padding:22px var(--gut) 44px;dis
   font-size:13px;color:var(--ink-2);border-top:1px solid var(--line)}
 footer a{text-decoration:none}footer a:hover{color:var(--ink)}
 footer .brand{font-size:13px}
+
+/* 회원 */
+.me{display:flex;align-items:center;gap:6px;margin-left:6px}
+.me img,.me .avatar{width:26px;height:26px;border-radius:50%;box-shadow:var(--sink-sm);object-fit:cover;flex:none}
+.me .avatar{display:grid;place-items:center;font:600 12px var(--mono);font-style:normal;color:var(--accent)}
+.me .name{font-size:13px;color:var(--ink-2);max-width:9em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.me a,.me .navbtn{font:500 13px/1 var(--body);color:var(--ink-2);text-decoration:none;padding:9px 12px;border-radius:var(--pill);background:none;border:0;cursor:pointer;
+  transition:box-shadow .25s var(--ease),color .25s,transform .25s var(--ease)}
+.me a:hover,.me .navbtn:hover{color:var(--ink);box-shadow:var(--raise-sm);transform:translateY(-1px)}
+.me a.join{color:var(--accent-ink);background:var(--accent);font-weight:600;box-shadow:var(--raise-sm),0 8px 18px -10px var(--accent)}
+.me a.join:hover{color:var(--accent-ink)}
+.me form{display:contents}
+@media(max-width:640px){.me .name{display:none}}
+.card.gate{grid-column:1/-1;box-shadow:var(--sink);align-items:flex-start;padding:28px 30px;gap:8px}
+.card.gate:hover{transform:none;box-shadow:var(--sink)}
+.card.gate .who{font-size:22px}
+.card.gate .what{max-width:44em}
+.cta.left{justify-content:flex-start;margin-top:10px}
+.auth{max-width:520px;margin:clamp(24px,5vw,56px) auto 0;text-align:center}
+.auth h1{font-size:clamp(28px,4vw,40px);margin:6px 0 12px}
+.auth .sub{color:var(--ink-2);margin:0 auto 26px}
+.auth-card{text-align:left;padding:28px 26px;gap:16px}
+.btn.google{width:100%;background:var(--bg);color:var(--ink);gap:10px}
+.btn.google svg{width:18px;height:18px;flex:none}
+.or{display:flex;align-items:center;gap:12px;color:var(--ink-3);font-size:12px}
+.or::before,.or::after{content:"";flex:1;border-top:1px solid var(--line)}
+.auth-form{display:grid;gap:14px}
+.auth-form label{display:grid;gap:6px;font-size:13px;font-weight:600;color:var(--ink-2)}
+.auth-form input{width:100%;border:0;background:var(--bg);box-shadow:var(--sink-sm);border-radius:14px;padding:13px 16px;font:inherit;font-size:15px;color:var(--ink);outline:none;transition:box-shadow .25s var(--ease)}
+.auth-form input:focus{box-shadow:var(--sink-sm),0 0 0 3px var(--accent-soft)}
+.auth-form .help{font-weight:400;color:var(--ink-3);font-size:12px}
+.auth-form .btn{margin-top:4px}
+.err{border-radius:var(--r-sm);padding:12px 16px;color:var(--del-ink);background:var(--del);font-size:14px;margin:0}
+
+/* 스플래시·소개 움직임 */
+.intro-hero{position:relative}
+.intro-hero>*{position:relative;z-index:1}
+.orb{position:absolute;z-index:0;border-radius:50%;background:var(--bg);box-shadow:var(--raise);animation:float 9s ease-in-out infinite alternate}
+.orb.a{width:170px;height:170px;left:4%;top:4%}
+.orb.b{width:96px;height:96px;right:8%;top:16%;animation-duration:11s;animation-delay:-4s}
+.orb.c{width:58px;height:58px;left:15%;bottom:6%;box-shadow:var(--sink);animation-duration:13s;animation-delay:-7s}
+@keyframes float{from{transform:translate(0,0)}to{transform:translate(22px,-30px)}}
+@media(max-width:820px){.orb{display:none}}
+.intro-hero .brand.big{animation:rise .6s var(--ease) both}
+.intro-hero .eyebrow{animation:rise .6s var(--ease) .1s both}
+.intro-hero h1{animation:rise .7s var(--ease) .2s both}
+.intro-hero .sub{animation:rise .7s var(--ease) .32s both}
+.intro-hero .cta{animation:rise .7s var(--ease) .45s both}
+.demo{max-width:560px;margin:36px auto 0;text-align:left;padding:20px 22px;gap:10px;animation:rise .8s var(--ease) .6s both}
+.demo .cite{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--ink-2)}
+.demo .cite b{font-family:var(--display);font-size:14px;color:var(--ink)}
+.demo .seal{margin-left:auto;animation:stamp .5s var(--ease) 1.4s both}
+.demo .text{font-size:15px;max-width:none}
+.demo del,.demo ins{background-color:transparent;background-repeat:no-repeat;background-size:0 100%;animation:demo-sweep 8s var(--ease) infinite}
+.demo del{background-image:linear-gradient(var(--del),var(--del));animation-delay:1.1s}
+.demo ins{background-image:linear-gradient(var(--ins),var(--ins));animation-delay:1.7s}
+@keyframes demo-sweep{0%{background-size:0 100%}12%,84%{background-size:100% 100%}94%,100%{background-size:0 100%}}
+@keyframes stamp{from{opacity:0;transform:scale(1.6) rotate(-8deg)}to{opacity:1;transform:none}}
+.demo-cap{margin:0;font-size:12.5px;color:var(--ink-3)}
+.cue{display:block;width:12px;height:12px;margin:26px auto 0;border-right:2px solid var(--ink-3);border-bottom:2px solid var(--ink-3);animation:bob 1.8s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0) rotate(45deg);opacity:.45}50%{transform:translateY(8px) rotate(45deg);opacity:1}}
+.trio .n,.trio .icon{animation:pop .5s var(--ease) both;animation-delay:calc(var(--i,0)*120ms + .25s)}
+@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:none;opacity:1}}
+@media(prefers-reduced-motion:reduce){
+  .demo del,.demo ins{animation:none;background-size:100% 100%}
+  .orb,.cue{animation:none}
+}
 `
 
 // 점진적 향상. 없어도 모든 화면이 동작한다 — 검색은 /search 로 가고, 스플래시의 시작 버튼은 /start 로 간다.
@@ -327,7 +395,16 @@ if(q&&grid){
 
 const NAV: [string, string][] = [['/', '기록'], ['/changes', '변경 기록'], ['/intro', '소개'], ['/bot', '수집 정책'], ['/api/v1/services', 'API']]
 
-export const Layout: FC<PropsWithChildren<{ title: string; siteUrl: string; feed?: string; path?: string; description?: string }>> = ({ title, feed, path, description, children }) => (
+/** 상단의 회원 자리. 비회원은 로그인·회원가입, 회원은 이름과 로그아웃. */
+const Account: FC<{ user?: UserRow | null }> = ({ user }) => user
+  ? <span class="me">
+      {user.picture ? <img src={user.picture} alt="" referrerpolicy="no-referrer" /> : <i class="avatar">{(user.name ?? user.email).slice(0, 1).toUpperCase()}</i>}
+      <span class="name">{user.name ?? user.email}</span>
+      <form method="post" action="/logout"><button class="navbtn" type="submit">로그아웃</button></form>
+    </span>
+  : <span class="me"><a href="/login">로그인</a><a class="join" href="/join">회원가입</a></span>
+
+export const Layout: FC<PropsWithChildren<{ title: string; siteUrl: string; feed?: string; path?: string; description?: string; user?: UserRow | null }>> = ({ title, feed, path, description, user, children }) => (
   <html lang="ko">
     <head>
       <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -349,6 +426,7 @@ export const Layout: FC<PropsWithChildren<{ title: string; siteUrl: string; feed
           <a class="brand" href="/"><i></i>POLICYLOG</a>
           <nav aria-label="주요">
             {NAV.map(([href, label]) => <a href={href} aria-current={path === href ? 'page' : undefined}>{label}</a>)}
+            <Account user={user} />
           </nav>
         </div>
       </header>
@@ -522,6 +600,7 @@ const STEPS: { title: string; body: string }[] = [
 const IntroContent: FC = () => (
   <div class="intro">
     <div class="intro-hero">
+      <span class="orb a" aria-hidden="true"></span><span class="orb b" aria-hidden="true"></span><span class="orb c" aria-hidden="true"></span>
       <a class="brand big" href="/"><i></i>POLICYLOG</a>
       <p class="eyebrow">이용약관 · 개인정보 처리방침 변경 아카이브</p>
       <h1 id="intro-title">약관은 바뀌고,<br />알림은 오지 않습니다.</h1>
@@ -533,6 +612,13 @@ const IntroContent: FC = () => (
         <a class="btn primary" href="/start" data-start>시작하기</a>
         <a class="btn" href="#how">사용 방법 보기</a>
       </div>
+      {/* 제품이 하는 일을 말 대신 보여준다. 실제 기록이 아니라 예시라 aria-hidden 이다. */}
+      <div class="demo card static" aria-hidden="true">
+        <div class="cite"><b>제3조</b><span>국외 이전</span><span class="imp hi">높음</span><span class="seal"><em>시행</em>2026.07.07</span></div>
+        <p class="text">개인정보를 <del>국외로 이전하지 않습니다</del><ins>미국의 서버로 이전하며 AI 학습에 활용할 수 있습니다</ins>.</p>
+        <p class="demo-cap">바뀐 문장을 조문 단위로 잡아, 지운 곳은 붉게 넣은 곳은 푸르게 남깁니다.</p>
+      </div>
+      <span class="cue" aria-hidden="true"></span>
     </div>
     <section class="intro-sec" aria-labelledby="what">
       <h2 id="what">무엇을 하나요</h2>
@@ -576,13 +662,28 @@ const Splash: FC = () => (
 
 export const IntroPage: FC = () => <IntroContent />
 
-export const Home: FC<{ docs: DocumentRow[]; signals: Signals; featured: DocumentRow[]; total: number; showIntro: boolean }> = ({ docs, signals: s, featured, total, showIntro }) => {
+/** 비회원에게 감춘 카드 대신 서는 한 장. 못 가져오는 문서가 몇 건인지도 숨기지 않는다 (§2.7). */
+const GateCard: FC<{ hidden: DocumentRow[]; i: number }> = ({ hidden, i }) => {
+  const n = (k: string) => hidden.filter((d) => statusKey(d) === k).length
+  return (
+    <article class="card gate in" style={`--i:${i}`}>
+      <p class="eyebrow">회원 전용</p>
+      <h3 class="who">{hidden.length}건이 더 있습니다</h3>
+      <p class="what">수집 중 {n('active')}건, 준비 중 {n('pending')}건, 못 가져옴 {n('blocked')}건. 가입하면 전체 약관 변경 내역 카드가 열립니다. 무료이고, Google 계정으로도 됩니다.</p>
+      <div class="cta left"><a class="btn primary sm" href="/join">무료로 가입</a><a class="btn sm" href="/login">로그인</a></div>
+    </article>
+  )
+}
+
+export const Home: FC<{ docs: DocumentRow[]; signals: Signals; featured: DocumentRow[]; total: number; showIntro: boolean; member: boolean }> = ({ docs, signals: s, featured, total, showIntro, member }) => {
   const watched = docs.filter((d) => d.status === 'ACTIVE').length
   const soon = docs.filter((d) => d.status === 'PENDING_RENDER').length
   const shut = docs.filter((d) => d.status === 'BLOCKED').length
   const kept = [...s.counts.values()].reduce((n, c) => n + c.n, 0)
   const picked = new Set(featured.map((d) => d.id))
   const rest = orderForGrid(docs.filter((d) => !picked.has(d.id)), s)
+  const shown = member ? rest : rest.slice(0, PREVIEW_CARDS)
+  const hidden = rest.slice(shown.length)
   return (
     <>
       {showIntro && <Splash />}
@@ -619,19 +720,26 @@ export const Home: FC<{ docs: DocumentRow[]; signals: Signals; featured: Documen
               <button type="button" class="chip" data-f="active" aria-pressed="false">수집 중</button>
               <button type="button" class="chip" data-f="pending" aria-pressed="false">준비 중</button>
               <button type="button" class="chip" data-f="blocked" aria-pressed="false">못 가져옴</button>
-              <span class="count"><b id="count">{docs.length}</b>건</span>
+              <span class="count"><b id="count">{featured.length + shown.length}</b>건</span>
             </div>
             <a class="lnk" href="/changes">변경 기록 전체</a>
           </div>
         </div>
-        <div id="grid" class="grid">{rest.map((d, i) => <DocCard d={d} s={s} i={i} />)}</div>
+        <div id="grid" class="grid">
+          {shown.map((d, i) => <DocCard d={d} s={s} i={i} />)}
+          {hidden.length > 0 && <GateCard hidden={hidden} i={shown.length} />}
+        </div>
         <p id="empty" class="note" hidden>걸리는 문서가 없습니다. 다른 낱말로 찾아보거나, 거르기를 "전체" 로 되돌리세요.</p>
       </section>
     </>
   )
 }
 
-export const SearchPage: FC<{ q: string; docs: DocumentRow[]; signals: Signals }> = ({ q, docs, signals: s }) => (
+export const SearchPage: FC<{ q: string; docs: DocumentRow[]; signals: Signals; member: boolean }> = ({ q, docs, signals: s, member }) => {
+  const ordered = orderForGrid(docs, s)
+  const shown = member ? ordered : ordered.slice(0, PREVIEW_CARDS)
+  const hidden = ordered.slice(shown.length)
+  return (
   <>
     <section class="hero compact" aria-labelledby="search-title">
       <p class="eyebrow">검색</p>
@@ -639,10 +747,14 @@ export const SearchPage: FC<{ q: string; docs: DocumentRow[]; signals: Signals }
       <SearchBox q={q} autofocus />
       <p class="hint">{docs.length > 0 ? `문서 ${docs.length}건이 걸렸습니다.` : '걸리는 문서가 없습니다. 서비스 이름이나 "약관", "개인정보" 로 찾아보세요.'}</p>
     </section>
-    {docs.length > 0 && <div id="grid" class="grid" style="margin-top:40px">{orderForGrid(docs, s).map((d, i) => <DocCard d={d} s={s} i={i} />)}</div>}
+    {docs.length > 0 && <div id="grid" class="grid" style="margin-top:40px">
+      {shown.map((d, i) => <DocCard d={d} s={s} i={i} />)}
+      {hidden.length > 0 && <GateCard hidden={hidden} i={shown.length} />}
+    </div>}
     <p class="center" style="margin-top:40px"><a class="btn" href="/">전체 기록으로</a></p>
   </>
-)
+  )
+}
 
 export const ChangesPage: FC<{ changes: ChangeListRow[] }> = ({ changes }) => (
   <>
@@ -841,11 +953,66 @@ export const NotFoundPage: FC = () => (
   </section>
 )
 
-export const AdminPage: FC<{ docs: DocumentRow[]; counts: Map<string, { n: number; oldest: string }> }> = ({ docs, counts }) => (
+const GoogleG: FC = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+  </svg>
+)
+
+const GoogleButton: FC<{ next: string }> = ({ next }) => (
+  <>
+    <a class="btn google" href={`/auth/google?next=${encodeURIComponent(next)}`}><GoogleG />Google 계정으로 계속하기</a>
+    <div class="or"><span>또는 이메일로</span></div>
+  </>
+)
+
+export const JoinPage: FC<{ next: string; google: boolean; error?: string; values?: { email?: string; name?: string } }> = ({ next, google, error, values }) => (
+  <section class="auth in">
+    <p class="eyebrow">회원가입</p>
+    <h1>전체 기록을 보려면<br />가입하세요.</h1>
+    <p class="sub">무료입니다. 가입하면 모든 약관 변경 내역 카드가 열립니다.</p>
+    <div class="card static auth-card">
+      {google && <GoogleButton next={next} />}
+      {error && <p class="err" role="alert">{error}</p>}
+      <form class="auth-form" method="post" action="/join">
+        <input type="hidden" name="next" value={next} />
+        <label><span>이름 <span class="help">(선택)</span></span><input name="name" value={values?.name} maxlength={60} autocomplete="name" /></label>
+        <label>이메일<input name="email" type="email" value={values?.email} required autocomplete="email" /></label>
+        <label>비밀번호<input name="password" type="password" required minlength={MIN_PASSWORD} autocomplete="new-password" /><span class="help">{MIN_PASSWORD}자 이상</span></label>
+        <button class="btn primary" type="submit">가입하기</button>
+      </form>
+      <p class="small muted" style="margin:0">이미 계정이 있나요? <a href={`/login?next=${encodeURIComponent(next)}`}>로그인</a></p>
+    </div>
+  </section>
+)
+
+export const LoginPage: FC<{ next: string; google: boolean; error?: string; values?: { email?: string } }> = ({ next, google, error, values }) => (
+  <section class="auth in">
+    <p class="eyebrow">로그인</p>
+    <h1>다시 오셨군요.</h1>
+    <p class="sub">로그인하면 전체 약관 변경 내역을 볼 수 있습니다.</p>
+    <div class="card static auth-card">
+      {google && <GoogleButton next={next} />}
+      {error && <p class="err" role="alert">{error}</p>}
+      <form class="auth-form" method="post" action="/login">
+        <input type="hidden" name="next" value={next} />
+        <label>이메일<input name="email" type="email" value={values?.email} required autocomplete="email" /></label>
+        <label>비밀번호<input name="password" type="password" required autocomplete="current-password" /></label>
+        <button class="btn primary" type="submit">로그인</button>
+      </form>
+      <p class="small muted" style="margin:0">계정이 없나요? <a href={`/join?next=${encodeURIComponent(next)}`}>회원가입</a></p>
+    </div>
+  </section>
+)
+
+export const AdminPage: FC<{ docs: DocumentRow[]; counts: Map<string, { n: number; oldest: string }>; users: number }> = ({ docs, counts, users }) => (
   <>
     <p class="eyebrow">관리</p>
     <h1>수집 상태</h1>
-    <p class="small muted">차단 문서의 미수집은 정상이다. 경고가 아니다 (§84.1).</p>
+    <p class="small muted">차단 문서의 미수집은 정상이다. 경고가 아니다 (§84.1). 회원 {users}명.</p>
     <div class="panel"><div class="wrap"><table><thead><tr><th>문서</th><th>티어</th><th>차단 유형</th><th>robots</th><th>버전</th><th>마지막 확인</th><th>오류</th><th></th></tr></thead><tbody>
       {docs.map((d) => (
         <tr>

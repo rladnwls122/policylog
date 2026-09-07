@@ -22,6 +22,11 @@ declare namespace Cloudflare {
     /** ENFORCE(기본) = robots 차단이면 수집하지 않는다. ADVISORY = 판정은 기록하되 게이트로 쓰지 않는다 (§24.4). */
     ROBOTS_MODE?: 'ENFORCE' | 'ADVISORY'
     ADMIN_PASSWORD?: string
+    /** Google 로그인. 둘 다 있어야 켜진다. 없으면 이메일 가입만 된다 (src/auth.ts). */
+    GOOGLE_CLIENT_ID?: string
+    GOOGLE_CLIENT_SECRET?: string
+    /** 비밀번호 PBKDF2 반복 횟수. 기본 100000. 무료 플랜의 CPU 한도에 걸리면 낮춘다. */
+    PASSWORD_ITERATIONS?: string
     TEST_MIGRATIONS: import('@cloudflare/vitest-pool-workers').D1Migration[]
   }
 }

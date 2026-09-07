@@ -12,7 +12,7 @@ export default defineConfig({
     cloudflareTest({
       wrangler: { configPath: './wrangler.jsonc' },
       miniflare: {
-        bindings: { ADMIN_PASSWORD: 'test', TEST_MIGRATIONS: migrations },
+        bindings: { ADMIN_PASSWORD: 'test', TEST_MIGRATIONS: migrations, GOOGLE_CLIENT_ID: 'test-client', GOOGLE_CLIENT_SECRET: 'test-secret', PASSWORD_ITERATIONS: '1000' },
         d1Databases: ['DB'],
         r2Buckets: ['RAW'],
       },

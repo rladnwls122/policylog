@@ -70,7 +70,7 @@ describe('공개 표면 (D-1)', () => {
     const list = await (await get(`/api/v1/policies/${cfg.id}/versions`)).json<any[]>()
     const changes = await (await get('/api/v1/changes')).json<any[]>()
     const urls = [
-      '/', '/bot', '/intro', '/changes', '/search?q=' + encodeURIComponent('당근'), `/policies/${cfg.id}`, `/policies/${cfg.id}/feed.xml`,
+      '/', '/bot', '/intro', '/changes', '/join', '/login', '/search?q=' + encodeURIComponent('당근'), `/policies/${cfg.id}`, `/policies/${cfg.id}/feed.xml`,
       ...list.map((v) => `/policies/${cfg.id}/versions/${v.id}`),
       ...list.map((v) => `/api/v1/policies/${cfg.id}/versions/${v.id}`),
       '/api/v1/services', '/api/v1/changes', `/api/v1/policies/${cfg.id}/versions`,

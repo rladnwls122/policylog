@@ -151,3 +151,37 @@ export const weeklyViews = (env: Env, days = 7) => {
   return dbOf(env).all<{ document_id: string; n: number }>('SELECT document_id, SUM(n) AS n FROM document_views WHERE day >= ? GROUP BY document_id', [since])
     .then((r) => new Map(r.map((x) => [x.document_id, x.n])))
 }
+
+// ── 회원·세션 (migrations/0004_users.sql) ────────────────────────
+export interface UserRow {
+  id: string; email: string; name: string | null; picture: string | null; password_hash: string | null; google_sub: string | null
+  created_at: string; last_login_at: string | null
+}
+export interface SessionRow { id: string; user_id: string; created_at: string; expires_at: string; user_agent: string | null }
+
+export const findUserByEmail = (env: Env, email: string) => dbOf(env).first<UserRow>('SELECT * FROM users WHERE email = ?', [email])
+export const findUserByGoogleSub = (env: Env, sub: string) => dbOf(env).first<UserRow>('SELECT * FROM users WHERE google_sub = ?', [sub])
+export const getUser = (env: Env, id: string) => dbOf(env).first<UserRow>('SELECT * FROM users WHERE id = ?', [id])
+
+export async function insertUser(env: Env, u: UserRow) {
+  await dbOf(env).run('INSERT INTO users (id, email, name, picture, password_hash, google_sub, created_at, last_login_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [u.id, u.email, u.name, u.picture, u.password_hash, u.google_sub, u.created_at, u.last_login_at])
+}
+
+export async function updateUser(env: Env, id: string, patch: Partial<UserRow>) {
+  const keys = Object.keys(patch)
+  if (!keys.length) return
+  await dbOf(env).run(`UPDATE users SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`, [...keys.map((k) => (patch as any)[k]), id])
+}
+
+export async function insertSession(env: Env, s: SessionRow) {
+  await dbOf(env).run('INSERT INTO sessions (id, user_id, created_at, expires_at, user_agent) VALUES (?, ?, ?, ?, ?)', [s.id, s.user_id, s.created_at, s.expires_at, s.user_agent])
+}
+
+/** 살아 있는 세션의 회원. 만료됐으면 없는 것과 같다. */
+export const sessionUser = (env: Env, sessionId: string, at: string) =>
+  dbOf(env).first<UserRow>('SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ? AND s.expires_at > ?', [sessionId, at])
+
+export const deleteSession = (env: Env, sessionId: string) => dbOf(env).run('DELETE FROM sessions WHERE id = ?', [sessionId])
+export const deleteExpiredSessions = (env: Env) => dbOf(env).run('DELETE FROM sessions WHERE expires_at <= ?', [now()])
+export const countUsers = (env: Env) => dbOf(env).first<{ n: number }>('SELECT COUNT(*) AS n FROM users').then((r) => r?.n ?? 0)
