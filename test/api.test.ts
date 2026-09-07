@@ -135,7 +135,7 @@ describe('실제 문서로 만든 변경', () => {
     const blocked = services.filter((s) => s.status === 'BLOCKED')
     expect(blocked.length).toBeGreaterThan(0)
     for (const b of blocked) expect(b.publicNote, b.id).toBeTruthy()
-    expect(await (await get('/')).text()).toContain('수집 불가')
+    expect(await (await get('/')).text()).toContain('못 가져옴')
   })
 
   it('RSS 피드가 변경을 싣는다', async () => {

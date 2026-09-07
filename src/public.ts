@@ -40,6 +40,7 @@ export function focusOnChange(before: string, after: string, context = 160, cap 
   const a: string[] = []
   let usedB = 0
   let usedA = 0
+  let dropped = false
   parts.forEach((p, i) => {
     const prevChanged = i > 0 && (parts[i - 1].added || parts[i - 1].removed)
     const nextChanged = i + 1 < parts.length && (parts[i + 1].added || parts[i + 1].removed)
@@ -56,8 +57,12 @@ export function focusOnChange(before: string, after: string, context = 160, cap 
       v = [head, tail].filter(Boolean).join(' … ') || (i === 0 || i === parts.length - 1 ? '' : ' … ')
       if (!head && !tail) v = ' … '
     }
-    if (usedB + v.length <= cap) { b.push(v); usedB += v.length }
-    if (usedA + v.length <= cap) { a.push(v); usedA += v.length }
+    if (usedB + v.length <= cap) { b.push(v); usedB += v.length } else dropped = true
+    if (usedA + v.length <= cap) { a.push(v); usedA += v.length } else dropped = true
   })
-  return { before: b.join(''), after: a.join('') }
+  // 상한에 걸려 뒤를 버렸으면 그렇게 보여야 한다. 문장이 그냥 끊긴 것처럼 두지 않는다.
+  // 말줄임을 붙이느라 상한을 넘기지는 않는다 (D-1, §67.2).
+  const tail = (s: string) =>
+    dropped && s && !s.trimEnd().endsWith('…') ? s.slice(0, cap - 2).trimEnd() + ' …' : s
+  return { before: tail(b.join('')), after: tail(a.join('')) }
 }
