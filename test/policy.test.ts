@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { evaluateRobots } from '../src/acquire'
+import { evaluateRobots, robotsEnforced, isCollectible } from '../src/acquire'
 import { shapeVersion, EXCERPT_CAP, DOCUMENT_SHARE_CAP } from '../src/public'
 import { DOCUMENTS } from '../src/documents'
 import type { VersionRow } from '../src/db'
@@ -70,9 +70,39 @@ describe('robots 판정 (§24)', () => {
   })
 })
 
+describe('robots 모드 (§24.4)', () => {
+  const env = (m?: string) => ({ ROBOTS_MODE: m } as unknown as Parameters<typeof robotsEnforced>[0])
+  const doc = (over: Partial<(typeof DOCUMENTS)[number]>) => ({ ...DOCUMENTS[0], ...over })
+
+  it('기본은 ENFORCE 다 — 설정을 안 건드리면 동작이 안 바뀐다', () => {
+    expect(robotsEnforced(env(undefined))).toBe(true)
+    expect(robotsEnforced(env('ENFORCE'))).toBe(true)
+    expect(robotsEnforced(env('ADVISORY'))).toBe(false)
+  })
+  it('ENFORCE 에서는 robots 차단 문서가 수집 대상이 아니다', () => {
+    expect(isCollectible(env('ENFORCE'), doc({ blocker: 'ROBOTS', extraction: { selector: 'main' } }))).toBe(false)
+  })
+  it('ADVISORY 에서는 셀렉터가 실측된 robots 차단 문서만 열린다', () => {
+    expect(isCollectible(env('ADVISORY'), doc({ blocker: 'ROBOTS', extraction: { selector: 'main' } }))).toBe(true)
+    expect(isCollectible(env('ADVISORY'), doc({ blocker: 'ROBOTS', extraction: undefined }))).toBe(false)
+  })
+  it('ADVISORY 라도 WAF·렌더링·문서없음은 열리지 않는다', () => {
+    for (const b of ['WAF', 'RENDER_REQUIRED', 'DOCUMENT_ABSENT'] as const)
+      expect(isCollectible(env('ADVISORY'), doc({ blocker: b, extraction: { selector: 'main' } })), b).toBe(false)
+  })
+  it('모드는 robots 판정 자체를 바꾸지 않는다 — 차단은 계속 차단으로 기록된다', () => {
+    expect(evaluateRobots('User-agent: *\nDisallow: /policy', '/policy/terms/', 'POLICYLOG')).toBe('DISALLOWED')
+  })
+})
+
 describe('카탈로그 불변식 (§2.7, §19)', () => {
-  it('차단된 문서는 추출 설정을 갖지 않는다 — 가져올 방법 자체가 없다', () => {
-    for (const d of DOCUMENTS) if (d.blocker !== 'NONE') { expect(d.extraction, d.id).toBeUndefined(); expect(d.history, d.id).toBeUndefined() }
+  // ROBOTS 는 우리 쪽 정책 게이트라 ADVISORY 에서 열 수 있다 (§24.4). 나머지 셋은 기술적으로 못 가져온다.
+  it('robots 외의 차단은 추출 설정을 갖지 않는다 — 가져올 방법 자체가 없다', () => {
+    for (const d of DOCUMENTS) if (d.blocker !== 'NONE' && d.blocker !== 'ROBOTS') { expect(d.extraction, d.id).toBeUndefined(); expect(d.history, d.id).toBeUndefined() }
+  })
+  it('추출 설정 없는 robots 차단 문서는 어느 모드에서도 수집 대상이 아니다', () => {
+    const advisory = { ROBOTS_MODE: 'ADVISORY' } as unknown as Parameters<typeof isCollectible>[0]
+    for (const d of DOCUMENTS) if (d.blocker === 'ROBOTS' && !d.extraction) expect(isCollectible(advisory, d), d.id).toBe(false)
   })
   it('차단된 문서는 공개 사유 문구를 갖는다', () => {
     for (const d of DOCUMENTS) if (d.blocker !== 'NONE') expect(d.publicNote, d.id).toBeTruthy()

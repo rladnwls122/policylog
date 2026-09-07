@@ -21,7 +21,7 @@ app.get('/', async (c) => {
   return c.html(<Layout title="약관 변경 이력" siteUrl={c.env.SITE_URL}><Home docs={docs.filter((d) => !d.publication_suppressed)} counts={counts} changes={changes} /></Layout>)
 })
 
-app.get('/bot', (c) => c.html(<Layout title="수집 정책" siteUrl={c.env.SITE_URL}><BotPage ua={c.env.USER_AGENT} contact={c.env.CONTACT_EMAIL} /></Layout>))
+app.get('/bot', (c) => c.html(<Layout title="수집 정책" siteUrl={c.env.SITE_URL}><BotPage ua={c.env.USER_AGENT} contact={c.env.CONTACT_EMAIL} robotsMode={c.env.ROBOTS_MODE ?? 'ENFORCE'} /></Layout>))
 
 app.get('/policies/:id', async (c) => {
   const d = await publicDoc(c.env, c.req.param('id'))
@@ -124,7 +124,8 @@ admin.get('/probe', async (c) => {
   const url = c.req.query('url')
   if (!url) return c.json({ error: 'url required' }, 400)
   const sel = c.req.query('selectors')?.split(',').filter(Boolean)
-  try { return c.json(await probe(c.env, url, sel)) } catch (e) { return c.json({ error: String(e) }, 400) }
+  const mode = c.req.query('render') === '1' ? 'RENDER' : 'STATIC'   // §85 렌더링 수집으로 재본다
+  try { return c.json(await probe(c.env, url, sel, mode)) } catch (e) { return c.json({ error: String(e) }, 400) }
 })
 admin.post('/poll/:id', async (c) => { await syncDocuments(c.env); return c.json(await poll(c.env, c.req.param('id'))) })
 admin.post('/run', async (c) => { await syncDocuments(c.env); return c.json(await runScheduled(c.env)) })

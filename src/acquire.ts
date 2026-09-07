@@ -1,6 +1,8 @@
 // 수집 파이프라인 (§15). robots 판정 → 안전한 정적 fetch → 추출 → 정규화 → 게이트 → 해시 → 버전 → diff.
 // 회피는 없다 (§2.6). User-Agent 는 env.USER_AGENT 하나뿐이고, 이 파일 밖에서 fetch 를 부르지 않는다.
-import { DOCUMENTS, type DocumentConfig } from './documents'
+// robots 판정을 게이트로 쓸지는 env.ROBOTS_MODE 가 정한다 (§24.4). 판정 자체는 어느 모드에서든 재고 기록한다.
+import puppeteer from '@cloudflare/puppeteer'
+import { DOCUMENTS, robotsEnforced, isCollectible, fetchModeOf, type DocumentConfig } from './documents'
 import { extract, type TableBlock } from './extract'
 import { normalize, sha256, gate, extractDates, sectionsOf, yyyymmdd, hangulRatio, NORMALIZATION_PROFILE, PARSER_VERSION } from './normalize'
 import { diffSections, diffParagraphs, diffTables, summarize } from './diff'
@@ -15,19 +17,37 @@ const TIMEOUT_MS = 20_000
 // ── robots (§24) ─────────────────────────────────────────────
 export type RobotsVerdict = 'ALLOWED' | 'DISALLOWED' | 'UNKNOWN'
 
-export async function robotsVerdict(env: Env, url: string): Promise<RobotsVerdict> {
+// 수집 여부 판정은 documents.ts 에 있다 (순수 함수라 db.ts 도 같은 규칙을 쓴다).
+// ADVISORY 여도 달라지지 않는 것: User-Agent 는 env.USER_AGENT 하나이고, 접근 간격 상한도 그대로다.
+// 회피 수단(프록시·핑거프린트 조작·캡차)은 모드와 무관하게 코드에 없다 (§2.6).
+export { robotsEnforced, isCollectible, fetchModeOf } from './documents'
+
+export const robotsVerdict = async (env: Env, url: string) => (await robotsCheck(env, url)).verdict
+
+/**
+ * robots 판정 + 그 판정이 우리를 이름으로 지목한 그룹에서 나왔는지.
+ * `User-agent: POLICYLOG` 로 명시된 거부는 ADVISORY 모드에서도 따른다 (/bot 에 그렇게 적혀 있다).
+ * 포괄 규칙(`*`·경로 전체 차단)만 ADVISORY 에서 게이트로 쓰지 않는다.
+ */
+export async function robotsCheck(env: Env, url: string): Promise<{ verdict: RobotsVerdict; named: boolean }> {
   const u = new URL(url)
   let res: Response
   try {
     res = await rawFetch(env, `${u.origin}/robots.txt`)
-  } catch { return 'DISALLOWED' }                       // 타임아웃·연결 실패 = 동의 아님 (11번가 사례)
-  if (res.status === 404 || res.status === 410) return 'ALLOWED'
-  if (res.status !== 200) return 'DISALLOWED'           // 403 on robots.txt itself → DISALLOWED (쿠팡 사례)
+  } catch { return { verdict: 'DISALLOWED', named: false } }   // 타임아웃·연결 실패 = 동의 아님 (11번가 사례)
+  if (res.status === 404 || res.status === 410) return { verdict: 'ALLOWED', named: false }
+  if (res.status !== 200) return { verdict: 'DISALLOWED', named: false } // 403 on robots.txt itself → DISALLOWED (쿠팡 사례)
   const ct = res.headers.get('content-type') ?? ''
   const body = await res.text()
-  if (ct.includes('text/html') || /^\s*<!doctype html|^\s*<html/i.test(body)) return 'ALLOWED' // HTML 404 페이지 (policy.yanolja.com)
-  return evaluateRobots(body, u.pathname + u.search, 'POLICYLOG')
+  if (ct.includes('text/html') || /^\s*<!doctype html|^\s*<html/i.test(body)) return { verdict: 'ALLOWED', named: false } // HTML 404 페이지 (policy.yanolja.com)
+  return { verdict: evaluateRobots(body, u.pathname + u.search, 'POLICYLOG'), named: robotsNamesUs(body, 'POLICYLOG') }
 }
+
+/** robots.txt 안에 `*` 가 아니라 우리 이름을 지목한 User-agent 그룹이 있는가. */
+export const robotsNamesUs = (txt: string, agent: string) =>
+  [...txt.matchAll(/^[ \t]*user-agent[ \t]*:(.*)$/gim)]
+    .map((m) => m[1].replace(/#.*/, '').trim().toLowerCase())
+    .some((a) => a !== '' && a !== '*' && agent.toLowerCase().includes(a))
 
 /** Google 식 최장 일치. 우리 이름의 그룹이 있으면 그것만, 없으면 `*` 그룹. 그룹이 하나도 없으면 ALLOWED. */
 export function evaluateRobots(txt: string, path: string, agent: string): RobotsVerdict {
@@ -97,7 +117,32 @@ async function rawFetch(env: Env, url: string): Promise<Response> {
 }
 
 /** 본문 fetch. 403 은 답이지 오류가 아니다 — 재시도하지 않는다 (§24.4). */
-export async function fetchDocument(env: Env, url: string): Promise<{ status: number; html: string; finalUrl: string }> {
+/**
+ * 렌더링 수집 (§85). Cloudflare Browser Rendering 으로 페이지를 띄우고 렌더된 DOM 을 돌려준다.
+ * 헤드리스 크롬을 직접 붙이지 않고 @cloudflare/puppeteer 를 그대로 쓴다.
+ *
+ * 브라우저를 쓴다고 회피를 하는 게 아니다 (§2.6) — User-Agent 는 여전히 env.USER_AGENT 하나이고,
+ * 스텔스 플러그인·핑거프린트 조작·캡차 해결은 붙이지 않는다. JS 로만 그려지는 본문을 읽을 뿐이다.
+ */
+export async function renderDocument(env: Env, url: string): Promise<{ status: number; html: string; finalUrl: string }> {
+  assertSafeUrl(url)
+  if (!env.BROWSER) throw new Error('NO_BROWSER_BINDING')
+  const browser = await puppeteer.launch(env.BROWSER)
+  try {
+    const page = await browser.newPage()
+    await page.setUserAgent(env.USER_AGENT)
+    await page.setExtraHTTPHeaders({ 'accept-language': 'ko' })
+    const res = await page.goto(url, { waitUntil: 'networkidle0', timeout: TIMEOUT_MS })
+    const html = await page.content()
+    if (html.length > MAX_BODY) throw new Error('BODY_TOO_LARGE')
+    return { status: res?.status() ?? 0, html, finalUrl: page.url() }
+  } finally {
+    await browser.close()
+  }
+}
+
+export async function fetchDocument(env: Env, url: string, mode: 'STATIC' | 'RENDER' = 'STATIC'): Promise<{ status: number; html: string; finalUrl: string }> {
+  if (mode === 'RENDER') return renderDocument(env, url)
   const res = await rawFetch(env, url)
   const buf = await res.arrayBuffer()
   if (buf.byteLength > MAX_BODY) throw new Error('BODY_TOO_LARGE')
@@ -136,7 +181,7 @@ export interface CaptureResult { created: boolean; versionId?: string; reason?: 
 export async function capture(env: Env, doc: DocumentConfig, opts: { url: string; provenance: 'OFFICIAL_HISTORY' | 'SELF_FETCH'; effectiveAt?: string; versionKey?: string; earliest?: string | null; publishGate?: boolean }): Promise<CaptureResult> {
   const ex = doc.extraction!
   const observedAt = now()
-  const { status, html, finalUrl } = await fetchDocument(env, opts.url)
+  const { status, html, finalUrl } = await fetchDocument(env, opts.url, fetchModeOf(doc))
   if (status !== 200) return { created: false, reason: `HTTP_${status}` }
 
   const extracted = await extract(html, ex.selector, ex.ignore)
@@ -181,7 +226,7 @@ export async function capture(env: Env, doc: DocumentConfig, opts: { url: string
 // ── 백필 (§72): 공식 이력 → 버전 → 억제된 변경 ─────────────────
 export async function backfill(env: Env, docId: string, cap = HISTORY_DAILY_CAP, sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))) {
   const doc = DOCUMENTS.find((d) => d.id === docId)
-  if (!doc?.history || doc.blocker !== 'NONE') throw new Error('NOT_HARVESTABLE')
+  if (!doc?.history || !isCollectible(env, doc)) throw new Error('NOT_HARVESTABLE')
   await ensureAllowed(env, doc)
   const refs = await harvest(env, doc)
   const stored = await storedSourceUrls(env, docId)
@@ -227,7 +272,7 @@ export async function createChange(env: Env, from: VersionRow, to: VersionRow, s
 // ── 실시간 폴링 (§47): 현재 본문 캡처, 새 버전이면 변경 발행 ────
 export async function poll(env: Env, docId: string) {
   const doc = DOCUMENTS.find((d) => d.id === docId)
-  if (!doc || doc.blocker !== 'NONE') return { skipped: 'NOT_ACTIVE' }
+  if (!doc || !isCollectible(env, doc)) return { skipped: 'NOT_ACTIVE' }
   const row = await getDocument(env, docId)
   try {
     await ensureAllowed(env, doc)
@@ -249,22 +294,25 @@ async function ensureAllowed(env: Env, doc: DocumentConfig) {
   const row = await getDocument(env, doc.id)
   const stale = !row?.robots_checked_at || Date.now() - Date.parse(row.robots_checked_at) > ROBOTS_TTL_MS
   let verdict = row?.robots_verdict as RobotsVerdict | undefined
+  let named = row?.robots_named === 1
   if (stale || verdict === 'UNKNOWN') {
-    verdict = await robotsVerdict(env, doc.canonicalUrl)
+    ;({ verdict, named } = await robotsCheck(env, doc.canonicalUrl))
     // 이력 인덱스와 과거 본문이 다른 호스트에 있을 수 있다 (리디: ridibooks.com → policy.ridi.com).
     // 실제로 가져올 모든 호스트를 각각 판정한다 (§16.1).
     for (const url of doc.history ? [doc.history.indexUrl, doc.history.urlTemplate.replace('{key}', 'v1')] : [])
-      if (verdict === 'ALLOWED') verdict = await robotsVerdict(env, url)
-    await updateDocument(env, doc.id, { robots_verdict: verdict, robots_checked_at: now(), ...(verdict === 'DISALLOWED' ? { status: 'BLOCKED', blocker_type: 'ROBOTS' } : {}) })
+      if (verdict === 'ALLOWED') ({ verdict, named } = await robotsCheck(env, url))
+    const demote = verdict !== 'ALLOWED' && (robotsEnforced(env) || named)
+    await updateDocument(env, doc.id, { robots_verdict: verdict, robots_named: named ? 1 : 0, robots_checked_at: now(), ...(demote ? { status: 'BLOCKED', blocker_type: 'ROBOTS' } : {}) })
   }
-  if (verdict !== 'ALLOWED') throw new Error(`ROBOTS_${verdict}`)
+  // 우리를 이름으로 지목한 거부는 모드와 무관하게 따른다. 포괄 규칙만 ADVISORY 에서 넘어간다 (§24.4).
+  if (verdict !== 'ALLOWED' && (robotsEnforced(env) || named)) throw new Error(`ROBOTS_${verdict}${named ? '_BY_NAME' : ''}`)
 }
 
 /** 크론: 활성 문서 전부 폴링. 도메인당 10초 간격 (§24.3). */
 export async function runScheduled(env: Env) {
   const results: Record<string, unknown> = {}
   let lastHost = ''
-  for (const doc of DOCUMENTS.filter((d) => d.blocker === 'NONE')) {
+  for (const doc of DOCUMENTS.filter((d) => isCollectible(env, d))) {
     const host = new URL(doc.canonicalUrl).host
     if (host === lastHost) await new Promise((r) => setTimeout(r, 10_000))
     lastHost = host
@@ -285,7 +333,7 @@ export interface LinkCandidate { url: string; text: string; type: 'TERMS' | 'PRI
 /** 홈페이지에서 약관·처리방침으로 보이는 링크를 긁는다. 다른 호스트로 넘어가는 링크도 포함한다. */
 export async function discover(env: Env, pageUrl: string): Promise<{ robots: RobotsVerdict; status?: number; links: LinkCandidate[] }> {
   const robots = await robotsVerdict(env, pageUrl)
-  if (robots !== 'ALLOWED') return { robots, links: [] }
+  if (robots !== 'ALLOWED' && robotsEnforced(env)) return { robots, links: [] }
   const { status, html, finalUrl } = await fetchDocument(env, pageUrl)
   const links: LinkCandidate[] = []
   const seen = new Set<string>()
@@ -313,11 +361,11 @@ export interface ProbeResult {
 }
 
 /** 후보 URL 한 개를 실제 파이프라인으로 재본다. 셀렉터는 여러 개 시도하고 가장 나은 것을 고른다. */
-export async function probe(env: Env, url: string, selectors = CANDIDATE_SELECTORS): Promise<ProbeResult> {
+export async function probe(env: Env, url: string, selectors = CANDIDATE_SELECTORS, mode: 'STATIC' | 'RENDER' = 'STATIC'): Promise<ProbeResult> {
   const robots = await robotsVerdict(env, url)
-  if (robots !== 'ALLOWED') return { url, robots }
+  if (robots !== 'ALLOWED' && robotsEnforced(env)) return { url, robots }
   let status: number, html: string
-  try { ({ status, html } = await fetchDocument(env, url)) } catch (e) { return { url, robots, error: String(e) } }
+  try { ({ status, html } = await fetchDocument(env, url, mode)) } catch (e) { return { url, robots, error: String(e) } }
   if (status !== 200) return { url, robots, status }
 
   const tried: NonNullable<ProbeResult['tried']> = []

@@ -35,11 +35,35 @@ export interface DocumentConfig {
     /** 라벨 없는 선두 날짜(토스)를 시행일로 쓸지 (§69.2 규칙 7) */
     leadingDate?: boolean
   }
+  /** 정적 fetch 로 본문이 안 나오는 문서. Browser Rendering 으로 가져온다 (§85) */
+  fetchMode?: 'STATIC' | 'RENDER'
   history?: HistoryConfig
   /** 차단·미수집 사유. 공개 카탈로그에 그대로 표시 */
   publicNote?: string
   checkedAt: string
 }
+
+/**
+ * 수집 여부를 정하는 순수 판정들. fetch 를 하지 않으므로 여기 둔다 — acquire.ts 와 db.ts 가 같은 규칙을 쓴다.
+ * 필요한 설정만 구조적으로 받는다 (Env 를 import 하면 db.ts 와 순환이 된다).
+ */
+export type CollectEnv = { ROBOTS_MODE?: 'ENFORCE' | 'ADVISORY'; BROWSER?: unknown }
+
+/** robots 판정을 수집 게이트로 쓸지 (§24.4). 기본은 ENFORCE — 설정을 안 건드리면 동작이 안 바뀐다. */
+export const robotsEnforced = (env: CollectEnv) => (env.ROBOTS_MODE ?? 'ENFORCE') !== 'ADVISORY'
+
+export const fetchModeOf = (doc: DocumentConfig) => doc.fetchMode ?? (doc.blocker === 'RENDER_REQUIRED' ? 'RENDER' : 'STATIC')
+
+/**
+ * 이 문서를 지금 설정에서 실제로 수집하는가.
+ * robots 차단은 ROBOTS_MODE=ADVISORY 에서, 렌더링 필요는 BROWSER 바인딩이 있을 때 열린다.
+ * 어느 쪽이든 셀렉터를 실측해 둔 문서만 열린다 — 설정이 없으면 가져올 방법 자체가 없다 (§2.7).
+ */
+export const isCollectible = (env: CollectEnv, doc: DocumentConfig) =>
+  !!doc.extraction && (
+    doc.blocker === 'NONE' ||
+    (doc.blocker === 'ROBOTS' && !robotsEnforced(env)) ||
+    (doc.blocker === 'RENDER_REQUIRED' && !!env.BROWSER))
 
 const CHECKED = '2026-09-07'
 const IGNORE = ['nav', 'header', 'footer', 'aside', 'script', 'style', 'button', 'svg']
@@ -131,11 +155,20 @@ const ACTIVE: DocumentConfig[] = [
     publicNote: '과거 버전 목록이 페이지에 있으나 본문은 클라이언트에서만 불러옵니다. 현행 본문만 수집합니다.',
     checkedAt: CHECKED,
   },
+  {
+    // 약관은 melon.com 이 아니라 info.melon.com 에 있고, 그 호스트의 robots.txt 는 이 경로를 허용한다.
+    // 예전 카탈로그는 melon.com 홈페이지 URL 로 재서 "robots 차단" 으로 잘못 분류돼 있었다 (§16.1).
+    id: 'melon-terms', service: 'melon', serviceName: '멜론', type: 'TERMS', title: '멜론 이용약관',
+    canonicalUrl: 'https://info.melon.com/terms/web/terms1_1.html', blocker: 'NONE',
+    extraction: { selector: 'div.wrap_terms', ignore: IGNORE },
+    publicNote: '시행일자별 과거 20개 버전 목록이 페이지에 있으나 본문은 클라이언트에서만 불러옵니다. 현행 본문만 수집합니다.',
+    checkedAt: CHECKED,
+  },
 ]
 
 // ── 렌더링 필요: robots 는 허용인데 HTTP 200 응답에 본문이 없다 (§84 RENDER_REQUIRED) ──
 // 렌더링 수집(§85)이 붙기 전까지 "수집 준비 중" 으로 표시하고 가져오지 않는다.
-const RENDER: [string, string, DocType, string][] = [
+const RENDER: [string, string, DocType, string, string?][] = [
   ['toss', '토스', 'PRIVACY', 'https://toss.im/privacy-policy'],
   ['yanolja', '야놀자(NOL)', 'TERMS', 'https://policy.yanolja.com/policy/?t=service'],
   ['baemin', '배달의민족', 'TERMS', 'https://terms.baemin.com/'],
@@ -158,51 +191,76 @@ const RENDER: [string, string, DocType, string][] = [
   ['wooribank', '우리은행', 'PRIVACY', 'https://spot.wooribank.com/pot/Dream?withyou=CMCOM0016'],
   ['yogiyo', '요기요', 'TERMS', 'https://www.yogiyo.co.kr/mobile/#/terms/'],
   ['socar', '쏘카', 'TERMS', 'https://www.socar.kr/terms'],
-]
-
-// ── robots.txt 가 막는다 (§84 ROBOTS) ──────────────────────────
-// [service, 이름, 종류, url, 사유]. 사유가 없으면 경로 차단이 기본이다.
-const ROBOTS_BLOCKED: [string, string, DocType, string, string?][] = [
-  ['kakao', '카카오', 'TERMS', 'https://www.kakao.com/policy/terms', 'robots.txt 가 /policy 경로를 차단합니다'],
-  ['kakao', '카카오', 'PRIVACY', 'https://www.kakao.com/policy/privacy', 'robots.txt 가 /policy 경로를 차단합니다'],
-  ['melon', '멜론', 'TERMS', 'https://www.melon.com/', 'robots.txt 가 User-agent: * 에 대해 / 전체를 차단합니다'],
-  ['melon', '멜론', 'PRIVACY', 'https://www.melon.com/', 'robots.txt 가 User-agent: * 에 대해 / 전체를 차단합니다'],
-  ['daangn', '당근', 'TERMS', 'https://www.daangn.com/policy/terms/', 'robots.txt 가 /policy 경로를 차단합니다'],
-  ['musinsa', '무신사', 'TERMS', 'https://www.musinsa.com/member/termsOfUse'],
-  ['musinsa', '무신사', 'PRIVACY', 'https://www.musinsa.com/member/privacy'],
-  ['ohou', '오늘의집', 'TERMS', 'https://ohou.se/terms'],
-  ['ohou', '오늘의집', 'PRIVACY', 'https://ohou.se/privacy'],
-  ['wanted', '원티드', 'TERMS', 'https://www.wanted.co.kr/terms'],
-  ['wanted', '원티드', 'PRIVACY', 'https://www.wanted.co.kr/privacy'],
+  // ↓ 이전에 ROBOTS 로 분류돼 있던 문서. 2026-09-07 ADVISORY 로 실제로 가져와 보니 HTTP 200 에 본문이 없었다.
+  ['daangn', '당근', 'TERMS', 'https://www.daangn.com/policy/terms/', 'robots 는 허용이지만 본문이 JavaScript 로만 렌더링됩니다. 렌더링 수집 준비 중입니다.'],
+  ['melon', '멜론', 'PRIVACY', 'https://info.melon.com/terms/web/terms3.html'],
+  ['genie', '지니뮤직', 'TERMS', 'https://www.genie.co.kr/guide/userAgreement'],
+  ['genie', '지니뮤직', 'PRIVACY', 'https://www.genie.co.kr/guide/userPrivacy'],
   ['yes24', 'YES24', 'TERMS', 'https://www.yes24.com/Templates/FTUseAgreement.aspx'],
   ['yes24', 'YES24', 'PRIVACY', 'https://www.yes24.com/Templates/FTPrivacy.aspx'],
-  ['gmarket', 'G마켓', 'TERMS', 'https://www.gmarket.co.kr/pages/policy/terms'],
-  ['ssg', 'SSG닷컴', 'TERMS', 'https://www.ssg.com/promotion/policyTerms.ssg'],
-  ['emart', '이마트몰', 'TERMS', 'https://emart.ssg.com/policy/terms.ssg'],
-  ['lotteon', '롯데온', 'TERMS', 'https://www.lotteon.com/p/display/main/policy'],
-  ['wemakeprice', '위메프', 'TERMS', 'https://www.wemakeprice.com/terms'],
-  ['zigzag', '지그재그', 'PRIVACY', 'https://cf.zigzag.kr/policy/privacy.html'],
+  ['upbit', '업비트', 'TERMS', 'https://upbit.com/service_center/terms_of_service'],
   ['ably', '에이블리', 'PRIVACY', 'https://a-bly.com/privacy'],
   ['oliveyoung', '올리브영', 'TERMS', 'https://www.oliveyoung.co.kr/store/main/getAgreement.do'],
-  ['interpark', '인터파크티켓', 'TERMS', 'https://ticket.interpark.com/Contents/Bbs/Terms'],
-  ['megabox', '메가박스', 'TERMS', 'https://www.megabox.co.kr/support/terms'],
   ['myrealtrip', '마이리얼트립', 'TERMS', 'https://www.myrealtrip.com/terms'],
-  ['zigbang', '직방', 'PRIVACY', 'https://www.zigbang.com/privacy'],
-  ['bugs', '벅스', 'TERMS', 'https://music.bugs.co.kr/terms/service'],
-  ['genie', '지니뮤직', 'TERMS', 'https://www.genie.co.kr/policy/terms'],
-  ['upbit', '업비트', 'TERMS', 'https://upbit.com/service_center/terms_of_service'],
-  ['naverpay', '네이버페이', 'TERMS', 'https://nid.naver.com/user2/help/agree'],
-  ['kakaopay', '카카오페이', 'TERMS', 'https://policy.kakaopay.com/terms'],
-  ['wadiz', '와디즈', 'TERMS', 'https://www.wadiz.kr/web/waccount/policy/terms'],
-  ['nexon', '넥슨', 'TERMS', 'https://member.nexon.com/policy/terms.aspx'],
-  ['ncsoft', '엔씨소프트', 'PRIVACY', 'https://kr.ncsoft.com/privacy'],
-  ['krafton', '크래프톤', 'PRIVACY', 'https://www.krafton.com/privacy-policy/'],
   ['lguplus', 'LG유플러스', 'PRIVACY', 'https://privacy.lguplus.com/privacy/info/v1/1'],
-  ['incruit', '인크루트', 'TERMS', 'https://www.incruit.com/', '홈페이지 robots.txt 가 / 전체를 차단해 문서 위치를 확인하지 못했습니다'],
-  ['koreanair', '대한항공', 'PRIVACY', 'https://www.koreanair.com/', '홈페이지 robots.txt 가 / 전체를 차단해 문서 위치를 확인하지 못했습니다'],
-  ['jejuair', '제주항공', 'PRIVACY', 'https://www.jejuair.net/', '홈페이지 robots.txt 가 / 전체를 차단해 문서 위치를 확인하지 못했습니다'],
-  ['samsungcard', '삼성카드', 'PRIVACY', 'https://www.samsungcard.com/', '홈페이지 robots.txt 가 / 전체를 차단해 문서 위치를 확인하지 못했습니다'],
 ]
+
+// ── robots.txt 는 비허용인데 수집하는 문서 (§24.4) ─────────────
+// ROBOTS_MODE=ADVISORY 일 때만 수집된다. ENFORCE 로 되돌리면 자동으로 차단 표시로 돌아간다.
+// 여기 들어가려면 /admin/probe 로 셀렉터를 실측해야 한다 — ROBOTS_BLOCKED 와 달리 추출 설정을 갖는다.
+// robots 판정은 계속 재고 카탈로그에 그대로 보인다. 숨기지 않는다 (§2.7).
+const ROBOTS_NOTE = 'robots.txt 는 이 경로를 비허용하지만, 공개 의무가 있는 문서라 하루 1회 이하로 수집합니다. 거부 요청은 즉시 반영합니다.'
+const ROBOTS_COLLECTED: DocumentConfig[] = [
+  {
+    id: 'kakao-terms', service: 'kakao', serviceName: '카카오', type: 'TERMS', title: '카카오 이용약관',
+    canonicalUrl: 'https://www.kakao.com/policy/terms', blocker: 'ROBOTS',
+    extraction: { selector: 'div.cont_policy', ignore: IGNORE },
+    publicNote: ROBOTS_NOTE, checkedAt: CHECKED,
+  },
+  {
+    id: 'kakao-privacy', service: 'kakao', serviceName: '카카오', type: 'PRIVACY', title: '카카오 개인정보 처리방침',
+    canonicalUrl: 'https://www.kakao.com/policy/privacy', blocker: 'ROBOTS',
+    extraction: { selector: 'div.cont_policy', ignore: IGNORE },
+    publicNote: ROBOTS_NOTE, checkedAt: CHECKED,
+  },
+  {
+    id: 'wanted-terms', service: 'wanted', serviceName: '원티드', type: 'TERMS', title: '원티드 이용약관',
+    canonicalUrl: 'https://www.wanted.co.kr/terms', blocker: 'ROBOTS',
+    extraction: { selector: 'div.article-body', ignore: IGNORE },
+    publicNote: ROBOTS_NOTE, checkedAt: CHECKED,
+  },
+  {
+    id: 'wanted-privacy', service: 'wanted', serviceName: '원티드', type: 'PRIVACY', title: '원티드 개인정보 처리방침',
+    canonicalUrl: 'https://www.wanted.co.kr/privacy', blocker: 'ROBOTS',
+    extraction: { selector: 'div.article-body', ignore: IGNORE },
+    publicNote: ROBOTS_NOTE, checkedAt: CHECKED,
+  },
+  {
+    id: 'megabox-terms', service: 'megabox', serviceName: '메가박스', type: 'TERMS', title: '메가박스 이용약관',
+    canonicalUrl: 'https://www.megabox.co.kr/support/terms', blocker: 'ROBOTS',
+    extraction: { selector: 'div.terms-content', ignore: IGNORE },
+    publicNote: `${ROBOTS_NOTE} 과거 13개 버전 목록이 페이지에 있으나 본문은 클라이언트에서만 불러옵니다.`, checkedAt: CHECKED,
+  },
+  {
+    id: 'bugs-terms', service: 'bugs', serviceName: '벅스', type: 'TERMS', title: '벅스 이용약관',
+    canonicalUrl: 'https://music.bugs.co.kr/rules/use', blocker: 'ROBOTS',
+    extraction: { selector: 'article', ignore: IGNORE },
+    publicNote: ROBOTS_NOTE, checkedAt: CHECKED,
+  },
+  {
+    id: 'bugs-privacy', service: 'bugs', serviceName: '벅스', type: 'PRIVACY', title: '벅스 개인정보 처리방침',
+    canonicalUrl: 'https://music.bugs.co.kr/rules/privacy', blocker: 'ROBOTS',
+    extraction: { selector: 'div.content', ignore: IGNORE },
+    publicNote: ROBOTS_NOTE, checkedAt: CHECKED,
+  },
+]
+
+// ── robots.txt 만이 유일한 벽인 문서 (§84 ROBOTS) ──────────────
+// 2026-09-07 재측정: 이전에 여기 있던 39건을 ROBOTS_MODE=ADVISORY 로 전부 실제로 가져와 봤다.
+// robots 를 넘고 나서 본문이 나온 건 7건뿐이고, 나머지는 애초에 robots 가 아니라 빈 DOM·404·403·
+// 네트워크 오류가 벽이었다. 7건은 ROBOTS_COLLECTED 로, 나머지는 실측 사유대로 RENDER·WAF_BLOCKED·
+// ABSENT 로 옮겼다. 그래서 이 목록은 지금 비어 있다 — robots 하나만 걸린 문서는 없다.
+const ROBOTS_BLOCKED: [string, string, DocType, string, string?][] = []
 
 // ── 봇 차단(WAF) 또는 403 (§84 WAF) ────────────────────────────
 const WAF_BLOCKED: [string, string, DocType, string, string][] = [
@@ -211,6 +269,21 @@ const WAF_BLOCKED: [string, string, DocType, string, string][] = [
   ['coupang', '쿠팡', 'TERMS', 'https://www.coupang.com/', 'www.coupang.com 이 403 을 반환합니다'],
   ['danawa', '다나와', 'TERMS', 'https://www.danawa.com/info/?nPage=terms', '요청에 403 을 반환합니다'],
   ['bithumb', '빗썸', 'TERMS', 'https://www.bithumb.com/react/policy/terms', '응답이 오지 않아 타임아웃됩니다'],
+  // ↓ 이전에 ROBOTS 로 분류돼 있던 문서. 2026-09-07 ADVISORY 로 실제로 요청해 보니 서버가 거절했다.
+  ['gmarket', 'G마켓', 'TERMS', 'https://www.gmarket.co.kr/pages/policy/terms', '요청에 403 을 반환합니다'],
+  ['ohou', '오늘의집', 'TERMS', 'https://ohou.se/terms', '요청에 403 을 반환합니다'],
+  ['ohou', '오늘의집', 'PRIVACY', 'https://ohou.se/privacy', '요청에 403 을 반환합니다'],
+  ['zigbang', '직방', 'PRIVACY', 'https://www.zigbang.com/privacy', '요청에 403 을 반환합니다'],
+  ['krafton', '크래프톤', 'PRIVACY', 'https://www.krafton.com/privacy-policy/', '요청에 403 을 반환합니다'],
+  ['jejuair', '제주항공', 'PRIVACY', 'https://www.jejuair.net/', '홈페이지가 403 을 반환해 문서 위치를 확인하지 못했습니다'],
+  ['koreanair', '대한항공', 'PRIVACY', 'https://www.koreanair.com/', '응답이 오지 않아 타임아웃됩니다'],
+  ['incruit', '인크루트', 'TERMS', 'https://www.incruit.com/', '연결이 거부됩니다'],
+  ['kakaopay', '카카오페이', 'TERMS', 'https://policy.kakaopay.com/terms', 'TLS 연결이 끊깁니다'],
+  ['wemakeprice', '위메프', 'TERMS', 'https://www.wemakeprice.com/terms', 'TLS 연결이 끊깁니다'],
+  ['interpark', '인터파크티켓', 'TERMS', 'https://ticket.interpark.com/Contents/Bbs/Terms', 'TLS 연결이 끊깁니다'],
+  ['zigzag', '지그재그', 'PRIVACY', 'https://cf.zigzag.kr/policy/privacy.html', 'TLS 연결이 끊깁니다'],
+  ['nexon', '넥슨', 'TERMS', 'https://member.nexon.com/policy/terms.aspx', 'https 요청이 http 로 리다이렉트됩니다 — 평문으로는 가져오지 않습니다'],
+  ['ncsoft', '엔씨소프트', 'PRIVACY', 'https://kr.ncsoft.com/privacy', 'https 요청이 http 로 리다이렉트됩니다 — 평문으로는 가져오지 않습니다'],
 ]
 
 // ── 웹에서 문서를 찾지 못함 (§84 DOCUMENT_ABSENT) ──────────────
@@ -218,6 +291,15 @@ const ABSENT: [string, string, DocType, string, string][] = [
   ['kurly', '컬리', 'TERMS', 'https://www.kurly.com/', '홈페이지에서 약관 링크를 찾지 못했고 흔한 경로는 404 입니다'],
   ['jobkorea', '잡코리아', 'PRIVACY', 'https://www.jobkorea.co.kr/', '홈페이지에서 처리방침 링크를 찾지 못했습니다'],
   ['laftel', '라프텔', 'TERMS', 'https://laftel.net/', '홈페이지에서 약관 링크를 찾지 못했습니다'],
+  // ↓ 이전에 ROBOTS 로 분류돼 있던 문서. robots 때문에 URL 을 한 번도 확인하지 못했고, 실제로 재보니 404 였다.
+  ['musinsa', '무신사', 'TERMS', 'https://www.musinsa.com/member/termsOfUse', '카탈로그의 URL 이 404 입니다. 실제 위치를 확인하지 못했습니다'],
+  ['musinsa', '무신사', 'PRIVACY', 'https://www.musinsa.com/member/privacy', '카탈로그의 URL 이 404 입니다. 실제 위치를 확인하지 못했습니다'],
+  ['ssg', 'SSG닷컴', 'TERMS', 'https://www.ssg.com/promotion/policyTerms.ssg', '카탈로그의 URL 이 404 입니다. 실제 위치를 확인하지 못했습니다'],
+  ['emart', '이마트몰', 'TERMS', 'https://emart.ssg.com/policy/terms.ssg', '카탈로그의 URL 이 404 입니다. 실제 위치를 확인하지 못했습니다'],
+  ['lotteon', '롯데온', 'TERMS', 'https://www.lotteon.com/p/display/main/policy', '카탈로그의 URL 이 404 입니다. 실제 위치를 확인하지 못했습니다'],
+  ['wadiz', '와디즈', 'TERMS', 'https://www.wadiz.kr/web/waccount/policy/terms', '카탈로그의 URL 이 404 입니다. 실제 위치를 확인하지 못했습니다'],
+  ['naverpay', '네이버페이', 'TERMS', 'https://nid.naver.com/user2/help/agree', '카탈로그의 URL 이 404 입니다. 실제 위치를 확인하지 못했습니다'],
+  ['samsungcard', '삼성카드', 'PRIVACY', 'https://www.samsungcard.com/', '홈페이지 본문이 비어 있어 문서 위치를 확인하지 못했습니다'],
 ]
 
 const title = (name: string, type: DocType) => `${name} ${type === 'TERMS' ? '이용약관' : '개인정보 처리방침'}`
@@ -225,14 +307,15 @@ const id = (service: string, type: DocType) => `${service}-${type.toLowerCase()}
 
 export const DOCUMENTS: DocumentConfig[] = [
   ...ACTIVE,
-  ...RENDER.map(([service, name, type, url]): DocumentConfig => ({
+  ...RENDER.map(([service, name, type, url, note]): DocumentConfig => ({
     id: id(service, type), service, serviceName: name, type, title: title(name, type), canonicalUrl: url,
-    blocker: 'RENDER_REQUIRED', publicNote: '본문이 JavaScript 로만 렌더링됩니다. 렌더링 수집 준비 중입니다.', checkedAt: CHECKED,
+    blocker: 'RENDER_REQUIRED', publicNote: note ?? '본문이 JavaScript 로만 렌더링됩니다. 렌더링 수집 준비 중입니다.', checkedAt: CHECKED,
   })),
   ...ROBOTS_BLOCKED.map(([service, name, type, url, note]): DocumentConfig => ({
     id: id(service, type), service, serviceName: name, type, title: title(name, type), canonicalUrl: url,
     blocker: 'ROBOTS', publicNote: note ?? 'robots.txt 가 이 경로를 차단합니다', checkedAt: CHECKED,
   })),
+  ...ROBOTS_COLLECTED,
   ...WAF_BLOCKED.map(([service, name, type, url, note]): DocumentConfig => ({
     id: id(service, type), service, serviceName: name, type, title: title(name, type), canonicalUrl: url,
     blocker: 'WAF', publicNote: note, checkedAt: CHECKED,

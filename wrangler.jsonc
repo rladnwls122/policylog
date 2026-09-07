@@ -12,9 +12,15 @@
   "r2_buckets": [
     { "binding": "RAW", "bucket_name": "policylog-raw" }
   ],
+  // Browser Rendering (S85). Needed only for RENDER_REQUIRED documents; static fetch stays the default path.
+  // Local dev needs `wrangler dev --remote`; the binding is unavailable on the Workers free plan.
+  "browser": { "binding": "BROWSER" },
   "vars": {
     "SITE_URL": "https://policylog.example",
     "CONTACT_EMAIL": "contact@policylog.example",
-    "USER_AGENT": "POLICYLOG/0.1 (+https://policylog.example/bot; contact@policylog.example)"
+    "USER_AGENT": "POLICYLOG/0.1 (+https://policylog.example/bot; contact@policylog.example)",
+    // ENFORCE = skip documents robots.txt disallows. ADVISORY = record the verdict, do not gate on it (S24.4).
+    // Both modes keep: one User-Agent, the request-interval caps, and any explicit `User-agent: POLICYLOG` refusal.
+    "ROBOTS_MODE": "ADVISORY"
   }
 }

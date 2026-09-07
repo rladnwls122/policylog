@@ -12,9 +12,10 @@ for (const [i, home] of homes.entries()) {
   const res = await fetch(`${BASE}/admin/discover?url=${encodeURIComponent(home)}`, { headers: { authorization: AUTH } })
   const r = await res.json()
   const host = new URL(home).host
-  if (r.robots !== 'ALLOWED') { console.log(`${host.padEnd(28)} ${r.robots}`); continue }
+  // ROBOTS_MODE=ADVISORY 면 워커가 차단 판정에도 링크를 돌려준다. 판정은 그대로 찍어 둔다.
   const links = (r.links ?? []).filter((l) => l.type !== 'UNKNOWN')
-  console.log(`${host.padEnd(28)} ${links.length}개`)
+  if (!links.length) { console.log(`${host.padEnd(28)} ${r.robots ?? r.error ?? '링크 없음'}`); continue }
+  console.log(`${host.padEnd(28)} ${links.length}개  (robots: ${r.robots})`)
   for (const l of links.slice(0, 8)) {
     console.log(`   ${l.type.padEnd(8)} ${l.url}  ${l.text}`)
     found.push({ home, ...l })

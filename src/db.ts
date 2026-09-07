@@ -1,5 +1,5 @@
 // D1 접근. versions 는 INSERT 전용 — 이 파일에 versions 의 UPDATE/DELETE 는 없다 (§44).
-import { DOCUMENTS, type DocumentConfig } from './documents'
+import { DOCUMENTS, isCollectible, type DocumentConfig } from './documents'
 
 /** 워커 바인딩. 실제 선언은 src/env.d.ts 의 Cloudflare.Env 다 — 테스트의 env 와 같은 타입을 쓴다. */
 export type Env = Cloudflare.Env
@@ -7,7 +7,7 @@ export type Env = Cloudflare.Env
 export interface DocumentRow {
   id: string; service: string; service_name: string; type: string; title: string; canonical_url: string
   status: string; acquisition_tier: string; blocker_type: string; fetch_mode: string
-  robots_verdict: string; robots_checked_at: string | null; official_history_url: string | null; history_harvester: string | null
+  robots_verdict: string; robots_named: number; robots_checked_at: string | null; official_history_url: string | null; history_harvester: string | null
   public_note: string | null; publication_suppressed: number; takedown_at: string | null; pending_hash: string | null
   last_checked_at: string | null; last_success_at: string | null; last_error: string | null
 }
@@ -36,8 +36,10 @@ export async function syncDocuments(env: Env, docs: DocumentConfig[] = DOCUMENTS
     ON CONFLICT(id) DO UPDATE SET service=?2, service_name=?3, type=?4, title=?5, canonical_url=?6, status=?7, acquisition_tier=?8,
       blocker_type=?9, official_history_url=?10, history_harvester=?11, public_note=?12`)
   await env.DB.batch(docs.map((d) => {
-    const status = d.blocker === 'NONE' ? 'ACTIVE' : d.blocker === 'RENDER_REQUIRED' ? 'PENDING_RENDER' : 'BLOCKED'
-    const tier = d.blocker !== 'NONE' ? 'NONE' : d.history ? 'T3' : 'T1'
+    // 상태는 blocker 가 아니라 "지금 설정에서 실제로 수집하는가" 를 따른다.
+    // robots 차단이어도 ADVISORY 면 ACTIVE 다 — blocker_type 은 그대로 남아 카탈로그에 사유가 보인다 (§2.7).
+    const status = isCollectible(env, d) ? 'ACTIVE' : d.blocker === 'RENDER_REQUIRED' ? 'PENDING_RENDER' : 'BLOCKED'
+    const tier = !isCollectible(env, d) ? 'NONE' : d.history ? 'T3' : 'T1'
     return stmt.bind(d.id, d.service, d.serviceName, d.type, d.title, d.canonicalUrl, status, tier, d.blocker,
       d.history?.indexUrl ?? null, d.history?.harvester ?? null, d.publicNote ?? null)
   }))
