@@ -22,7 +22,9 @@ import { MIN_PASSWORD } from './auth'
 // 상태 점(수집 중·준비 중·못 가져옴)은 작은 점 하나로만 색을 쓴다.
 //
 // 한글 규칙은 그대로다: line-height 1.05 아래로 내리지 않고, 대문자·자간 라벨은 라틴과 숫자에만 준다.
-// 표제 서체만 웹폰트로 받고 본문은 시스템 서체다 — 한글 웹폰트는 무겁다.
+// 서체 세 벌. 본문·UI 는 Pretendard(가변, 동적 서브셋 — 쓰는 글자 범위만 받는다), 표제는 Noto Serif KR —
+// 약관과 시행일을 다루는 기록물이라 표제에 명조의 무게를 준다 — 숫자·날짜·라벨은 JetBrains Mono.
+// 셋 다 unicode-range 로 쪼개져 있어 화면 하나가 받는 양은 수십 KB 다. 시스템 서체(Malgun Gothic)로 떨어지는 일은 없다.
 //
 // 움직임: 화면 이동은 문서 간 View Transition(지원 브라우저) 이고, 아니면 main 이 떠오른다.
 // 카드는 들어올 때 순서대로 떠오르고, 올리면 살짝 뜨고, 누르면 가라앉는다. prefers-reduced-motion 이면 전부 끈다.
@@ -45,9 +47,9 @@ const CSS = `
   --accent:#4C63E8;--accent-ink:#FFFFFF;--accent-soft:rgba(76,99,232,.14);
   --ok:#2E9E63;--warn:#D9962B;--stop:#9AA3B1;
   --del:#F7D7D2;--del-ink:#8A1F14;--ins:#D0E9D7;--ins-ink:#0F4A28;
-  --display:'IBM Plex Sans KR',Pretendard,'Apple SD Gothic Neo',system-ui,sans-serif;
-  --body:Pretendard,'Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif;
-  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --display:'Noto Serif KR','Apple SD Gothic Neo',serif;
+  --body:'Pretendard Variable',Pretendard,'Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
   --r:22px;--r-sm:14px;--pill:999px;
   --raise:8px 8px 20px var(--lo),-8px -8px 20px var(--hi);
   --raise-sm:4px 4px 10px var(--lo),-4px -4px 10px var(--hi);
@@ -65,7 +67,8 @@ html.theming,html.theming *,html.theming *::before,html.theming *::after{
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html{scroll-behavior:smooth}
-body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.7 var(--body);letter-spacing:.1px;
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.7 var(--body);letter-spacing:0;
+  font-feature-settings:'ss01','tnum';text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;
   word-break:keep-all;overflow-wrap:anywhere;-webkit-text-size-adjust:100%;min-height:100vh}
 main{max-width:var(--rail);margin:0 auto;padding:8px var(--gut) 0}
 section{scroll-margin-top:96px}
@@ -76,10 +79,12 @@ strong{font-weight:600}
 .muted{color:var(--ink-2)}
 .small{font-size:14px;line-height:1.6}
 .num{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:.9em;letter-spacing:.01em}
-h1,h2,h3,.brand,.cite,.art-title,.who{font-family:var(--display);font-weight:600;letter-spacing:-.02em}
-h1{font-size:clamp(30px,4.6vw,52px);line-height:1.12;letter-spacing:-.03em;margin:0 0 16px}
-h2{font-size:24px;line-height:1.25;margin:56px 0 12px}
-h3{font-size:17px;line-height:1.4;margin:0}
+h1,h2,h3,.cite,.art-title,.who{font-family:var(--display);font-weight:700;letter-spacing:-.01em}
+h1{font-size:clamp(30px,4.6vw,52px);line-height:1.2;letter-spacing:-.02em;margin:0 0 16px;text-wrap:balance}
+h2{font-size:24px;line-height:1.3;margin:56px 0 12px}
+h3{font-size:17px;line-height:1.45;margin:0}
+/* 상표는 라틴이라 본문 서체를 굵게 쓴다 — 명조의 라틴 대문자는 기록물보다 신문처럼 보인다. */
+.brand{font-family:var(--body);font-weight:800;letter-spacing:.12em}
 a{color:inherit;text-decoration-color:var(--ink-3);text-underline-offset:4px;text-decoration-thickness:1px;transition:color .2s,text-decoration-color .2s}
 a:hover{text-decoration-color:var(--ink)}
 a:focus-visible,button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:10px}
@@ -118,7 +123,9 @@ a:focus-visible,button:focus-visible,input:focus-visible,summary:focus-visible{o
   transition:box-shadow .25s var(--ease),color .25s,transform .25s var(--ease)}
 .top nav a:hover{color:var(--ink);box-shadow:var(--raise-sm);transform:translateY(-1px)}
 .top nav a[aria-current=page]{color:var(--accent);box-shadow:var(--sink-sm);transform:none}
-@media(max-width:640px){.top nav a{padding:7px 10px;font-size:12px}}
+@media(max-width:640px){.top nav a{padding:7px 10px;font-size:12px}
+  /* 좁은 화면에서는 바닥글에도 있는 링크를 상단에서 뺀다 — 알약이 세 줄로 접히지 않게. */
+  .top nav a[href="/bot"],.top nav a[href="/api/v1/services"]{display:none}}
 
 /* 히어로 · 검색 · 통계 */
 .hero{padding:clamp(36px,6vw,72px) 0 0;text-align:center}
@@ -470,10 +477,12 @@ export const Layout: FC<PropsWithChildren<{ title: string; siteUrl: string; feed
       {feed && <link rel="alternate" type="application/rss+xml" href={feed} />}
       {/* 인장. 시행일 도장과 같은 표시다. */}
       <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1.5' y='1.5' width='13' height='13' rx='3' fill='none' stroke='%23C0342A' stroke-width='2'/%3E%3Cpath d='M4.5 8h7' stroke='%23C0342A' stroke-width='2'/%3E%3C/svg%3E" />
-      {/* 표제와 기록 서체만 받는다. 한글 본문은 시스템 서체로 둔다 — 한글 웹폰트는 무겁다. */}
+      {/* 서체. Pretendard 는 jsDelivr 의 동적 서브셋, 표제·모노는 Google Fonts. 전부 unicode-range 로 쪼개져 쓰는 글자만 받는다. */}
+      <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin="" />
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" />
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
       {/* raw 없이 넣으면 Hono 가 따옴표를 이스케이프해 font-family 선언이 통째로 깨진다. */}
       <style>{raw(CSS)}</style>
     </head>
