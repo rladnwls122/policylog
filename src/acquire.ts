@@ -6,7 +6,8 @@ import { DOCUMENTS, robotsEnforced, isCollectible, fetchModeOf, type DocumentCon
 import { extract, type TableBlock } from './extract'
 import { normalize, sha256, gate, extractDates, sectionsOf, yyyymmdd, hangulRatio, NORMALIZATION_PROFILE, PARSER_VERSION } from './normalize'
 import { diffSections, diffParagraphs, diffTables, summarize } from './diff'
-import { type Env, type VersionRow, now, uid, getDocument, updateDocument, latestVersion, findVersionByHash, insertVersion, insertChange, changeBetween, storedSourceUrls } from './db'
+import { type Env, type VersionRow, now, uid, getDocument, getVersion, updateDocument, latestVersion, findVersionByHash, insertVersion, insertChange, changeBetween, storedSourceUrls } from './db'
+import { dbOf } from './sql'
 
 export const HISTORY_INTERVAL_MS = 5_000       // §71.4
 export const HISTORY_DAILY_CAP = 30            // §71.4
@@ -245,8 +246,7 @@ export async function backfill(env: Env, docId: string, cap = HISTORY_DAILY_CAP,
 
 /** 시간순 인접 버전 쌍마다 change 를 만든다. 이미 있으면 건너뛴다. 백필 변경은 알림 대상이 아니다 (§72.2). */
 export async function rebuildChanges(env: Env, docId: string, suppressedReason: string | null) {
-  const rows = await env.DB.prepare(`SELECT * FROM versions WHERE document_id = ? ORDER BY COALESCE(effective_at, substr(observed_at,1,10)), observed_at`).bind(docId).all<VersionRow>()
-  const vs = rows.results
+  const vs = await dbOf(env).all<VersionRow>(`SELECT * FROM versions WHERE document_id = ? ORDER BY COALESCE(effective_at, substr(observed_at,1,10)), observed_at`, [docId])
   for (let i = 1; i < vs.length; i++) {
     if (await changeBetween(env, vs[i - 1].id, vs[i].id)) continue
     await createChange(env, vs[i - 1], vs[i], suppressedReason)
@@ -280,7 +280,7 @@ export async function poll(env: Env, docId: string) {
     const r = await capture(env, doc, { url: doc.canonicalUrl, provenance: 'SELF_FETCH', earliest: row?.last_success_at ?? null, publishGate: true })
     await updateDocument(env, docId, { last_checked_at: now(), last_error: r.created || r.reason === 'UNCHANGED' || r.reason === 'PENDING_CONFIRMATION' ? null : r.reason, ...(r.created || r.reason === 'UNCHANGED' ? { last_success_at: now() } : {}) })
     if (r.created && prev) {
-      const to = (await env.DB.prepare('SELECT * FROM versions WHERE id = ?').bind(r.versionId).first<VersionRow>())!
+      const to = (await getVersion(env, r.versionId!))!
       await createChange(env, prev, to, null)
     }
     return r

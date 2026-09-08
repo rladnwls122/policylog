@@ -1,5 +1,7 @@
-// D1 접근. versions 는 INSERT 전용 — 이 파일에 versions 의 UPDATE/DELETE 는 없다 (§44).
+// 저장소 접근. versions 는 INSERT 전용 — 이 파일에 versions 의 UPDATE/DELETE 는 없다 (§44).
+// 엔진(Postgres · 테스트용 D1)과 연결 범위는 sql.ts 가 맡는다. 여기 쿼리는 두 엔진이 함께 읽는 문법만 쓴다.
 import { DOCUMENTS, isCollectible, type DocumentConfig } from './documents'
+import { dbOf, stmt } from './sql'
 
 /** 워커 바인딩. 실제 선언은 src/env.d.ts 의 Cloudflare.Env 다 — 테스트의 env 와 같은 타입을 쓴다. */
 export type Env = Cloudflare.Env
@@ -30,93 +32,202 @@ export const uid = () => crypto.randomUUID()
 
 /** 설정(코드)의 정적 속성을 DB 에 맞춘다. 런타임 상태 컬럼은 건드리지 않는다. */
 export async function syncDocuments(env: Env, docs: DocumentConfig[] = DOCUMENTS) {
-  const stmt = env.DB.prepare(`
+  const sql = `
     INSERT INTO documents (id, service, service_name, type, title, canonical_url, status, acquisition_tier, blocker_type, official_history_url, history_harvester, public_note)
     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
-    ON CONFLICT(id) DO UPDATE SET service=?2, service_name=?3, type=?4, title=?5, canonical_url=?6, status=?7, acquisition_tier=?8,
-      blocker_type=?9, official_history_url=?10, history_harvester=?11, public_note=?12`)
-  await env.DB.batch(docs.map((d) => {
+    ON CONFLICT(id) DO UPDATE SET service=excluded.service, service_name=excluded.service_name, type=excluded.type, title=excluded.title,
+      canonical_url=excluded.canonical_url, status=excluded.status, acquisition_tier=excluded.acquisition_tier, blocker_type=excluded.blocker_type,
+      official_history_url=excluded.official_history_url, history_harvester=excluded.history_harvester, public_note=excluded.public_note`
+  await dbOf(env).batch(docs.map((d) => {
     // 상태는 blocker 가 아니라 "지금 설정에서 실제로 수집하는가" 를 따른다.
     // robots 차단이어도 ADVISORY 면 ACTIVE 다 — blocker_type 은 그대로 남아 카탈로그에 사유가 보인다 (§2.7).
     const status = isCollectible(env, d) ? 'ACTIVE' : d.blocker === 'RENDER_REQUIRED' ? 'PENDING_RENDER' : 'BLOCKED'
     const tier = !isCollectible(env, d) ? 'NONE' : d.history ? 'T3' : 'T1'
-    return stmt.bind(d.id, d.service, d.serviceName, d.type, d.title, d.canonicalUrl, status, tier, d.blocker,
+    return stmt(sql, d.id, d.service, d.serviceName, d.type, d.title, d.canonicalUrl, status, tier, d.blocker,
       d.history?.indexUrl ?? null, d.history?.harvester ?? null, d.publicNote ?? null)
   }))
 }
 
 export const listDocuments = (env: Env) =>
-  env.DB.prepare(`SELECT * FROM documents
+  dbOf(env).all<DocumentRow>(`SELECT * FROM documents
     ORDER BY CASE status WHEN 'ACTIVE' THEN 0 WHEN 'PENDING_RENDER' THEN 1 ELSE 2 END, service_name, type`)
-    .all<DocumentRow>().then((r) => r.results)
 
 export const getDocument = (env: Env, id: string) =>
-  env.DB.prepare('SELECT * FROM documents WHERE id = ?').bind(id).first<DocumentRow>()
+  dbOf(env).first<DocumentRow>('SELECT * FROM documents WHERE id = ?', [id])
 
 export async function updateDocument(env: Env, id: string, patch: Partial<DocumentRow>) {
   const keys = Object.keys(patch)
   if (!keys.length) return
-  await env.DB.prepare(`UPDATE documents SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`)
-    .bind(...keys.map((k) => (patch as any)[k]), id).run()
+  await dbOf(env).run(`UPDATE documents SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`,
+    [...keys.map((k) => (patch as any)[k]), id])
 }
 
 const VERSION_META = 'id, document_id, observed_at, effective_at, announced_at, earliest_possible_change_at, lifecycle, source_url, provenance, acquisition_tier, fetch_mode, raw_object_key, content_hash, normalization_profile_id, parser_version, extraction_method, metadata, created_at, length(normalized_text) AS text_length'
 
 /** 시간순 (시행일 우선, 없으면 감지일). 본문은 싣지 않는다. */
 export const listVersions = (env: Env, documentId: string) =>
-  env.DB.prepare(`SELECT ${VERSION_META} FROM versions WHERE document_id = ? ORDER BY COALESCE(effective_at, substr(observed_at,1,10)) DESC, observed_at DESC`)
-    .bind(documentId).all<Omit<VersionRow, 'normalized_text'> & { text_length: number }>().then((r) => r.results)
+  dbOf(env).all<Omit<VersionRow, 'normalized_text'> & { text_length: number }>(
+    `SELECT ${VERSION_META} FROM versions WHERE document_id = ? ORDER BY COALESCE(effective_at, substr(observed_at,1,10)) DESC, observed_at DESC`, [documentId])
 
 export const getVersion = (env: Env, id: string) =>
-  env.DB.prepare('SELECT * FROM versions WHERE id = ?').bind(id).first<VersionRow>()
+  dbOf(env).first<VersionRow>('SELECT * FROM versions WHERE id = ?', [id])
 
 export const latestVersion = (env: Env, documentId: string) =>
-  env.DB.prepare(`SELECT * FROM versions WHERE document_id = ? ORDER BY COALESCE(effective_at, substr(observed_at,1,10)) DESC, observed_at DESC LIMIT 1`)
-    .bind(documentId).first<VersionRow>()
+  dbOf(env).first<VersionRow>(`SELECT * FROM versions WHERE document_id = ? ORDER BY COALESCE(effective_at, substr(observed_at,1,10)) DESC, observed_at DESC LIMIT 1`, [documentId])
 
 export const findVersionByHash = (env: Env, documentId: string, profile: string, hash: string) =>
-  env.DB.prepare('SELECT id FROM versions WHERE document_id = ? AND normalization_profile_id = ? AND content_hash = ?')
-    .bind(documentId, profile, hash).first<{ id: string }>()
+  dbOf(env).first<{ id: string }>('SELECT id FROM versions WHERE document_id = ? AND normalization_profile_id = ? AND content_hash = ?', [documentId, profile, hash])
 
 export const storedSourceUrls = (env: Env, documentId: string) =>
-  env.DB.prepare('SELECT DISTINCT source_url FROM versions WHERE document_id = ?').bind(documentId).all<{ source_url: string }>()
-    .then((r) => new Set(r.results.map((x) => x.source_url)))
+  dbOf(env).all<{ source_url: string }>('SELECT DISTINCT source_url FROM versions WHERE document_id = ?', [documentId])
+    .then((r) => new Set(r.map((x) => x.source_url)))
 
 export async function insertVersion(env: Env, v: VersionRow) {
-  await env.DB.prepare(`INSERT INTO versions (id, document_id, observed_at, effective_at, announced_at, earliest_possible_change_at, lifecycle, source_url, provenance,
+  await dbOf(env).run(`INSERT INTO versions (id, document_id, observed_at, effective_at, announced_at, earliest_possible_change_at, lifecycle, source_url, provenance,
       acquisition_tier, fetch_mode, raw_object_key, normalized_text, content_hash, normalization_profile_id, parser_version, extraction_method, metadata, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .bind(v.id, v.document_id, v.observed_at, v.effective_at, v.announced_at, v.earliest_possible_change_at, v.lifecycle, v.source_url, v.provenance,
-      v.acquisition_tier, v.fetch_mode, v.raw_object_key, v.normalized_text, v.content_hash, v.normalization_profile_id, v.parser_version, v.extraction_method, v.metadata, v.created_at)
-    .run()
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [v.id, v.document_id, v.observed_at, v.effective_at, v.announced_at, v.earliest_possible_change_at, v.lifecycle, v.source_url, v.provenance,
+      v.acquisition_tier, v.fetch_mode, v.raw_object_key, v.normalized_text, v.content_hash, v.normalization_profile_id, v.parser_version, v.extraction_method, v.metadata, v.created_at])
 }
 
+/** (from, to) 쌍은 유니크다. 이미 있으면 조용히 건너뛴다 — 멱등. */
 export async function insertChange(env: Env, c: ChangeRow) {
-  await env.DB.prepare(`INSERT OR IGNORE INTO changes (id, document_id, from_version_id, to_version_id, importance, categories, sections, table_rows,
-      detection_window_start, detection_window_end, suppressed_reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .bind(c.id, c.document_id, c.from_version_id, c.to_version_id, c.importance, c.categories, c.sections, c.table_rows,
-      c.detection_window_start, c.detection_window_end, c.suppressed_reason, c.created_at).run()
+  await dbOf(env).run(`INSERT INTO changes (id, document_id, from_version_id, to_version_id, importance, categories, sections, table_rows,
+      detection_window_start, detection_window_end, suppressed_reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT DO NOTHING`,
+    [c.id, c.document_id, c.from_version_id, c.to_version_id, c.importance, c.categories, c.sections, c.table_rows,
+      c.detection_window_start, c.detection_window_end, c.suppressed_reason, c.created_at])
 }
 
-export const getChange = (env: Env, id: string) => env.DB.prepare('SELECT * FROM changes WHERE id = ?').bind(id).first<ChangeRow>()
+export const getChange = (env: Env, id: string) => dbOf(env).first<ChangeRow>('SELECT * FROM changes WHERE id = ?', [id])
 
 export const changeBetween = (env: Env, fromId: string, toId: string) =>
-  env.DB.prepare('SELECT id FROM changes WHERE from_version_id = ? AND to_version_id = ?').bind(fromId, toId).first<{ id: string }>()
+  dbOf(env).first<{ id: string }>('SELECT id FROM changes WHERE from_version_id = ? AND to_version_id = ?', [fromId, toId])
 
 export interface ChangeListRow extends ChangeRow { title: string; service_name: string; effective_at: string | null; observed_at: string; publication_suppressed: number }
 
-const CHANGE_LIST = `SELECT c.*, d.title, d.service_name, d.publication_suppressed, v.effective_at, v.observed_at
-  FROM changes c JOIN documents d ON d.id = c.document_id JOIN versions v ON v.id = c.to_version_id`
+const CHANGE_COLS = 'c.*, d.title, d.service_name, d.publication_suppressed, v.effective_at, v.observed_at'
+const CHANGE_FROM = 'FROM changes c JOIN documents d ON d.id = c.document_id JOIN versions v ON v.id = c.to_version_id'
+const CHANGE_LIST = `SELECT ${CHANGE_COLS} ${CHANGE_FROM}`
 
 export const listChangesForDocument = (env: Env, documentId: string) =>
-  env.DB.prepare(`${CHANGE_LIST} WHERE c.document_id = ? ORDER BY COALESCE(v.effective_at, substr(v.observed_at,1,10)) DESC, v.observed_at DESC`)
-    .bind(documentId).all<ChangeListRow>().then((r) => r.results)
+  dbOf(env).all<ChangeListRow>(`${CHANGE_LIST} WHERE c.document_id = ? ORDER BY COALESCE(v.effective_at, substr(v.observed_at,1,10)) DESC, v.observed_at DESC`, [documentId])
 
-/** 홈 화면: 공개 억제되지 않은 문서의 최근 변경. 백필 변경도 타임라인엔 보이지만 홈에서는 실시간 감지가 우선 */
+/** 공개 억제되지 않은 문서의 최근 변경. 백필 변경도 보이지만 실시간 감지가 앞선다. */
 export const recentChanges = (env: Env, limit = 20) =>
-  env.DB.prepare(`${CHANGE_LIST} WHERE d.publication_suppressed = 0 ORDER BY (c.suppressed_reason IS NULL) DESC, COALESCE(v.effective_at, substr(v.observed_at,1,10)) DESC LIMIT ?`)
-    .bind(limit).all<ChangeListRow>().then((r) => r.results)
+  dbOf(env).all<ChangeListRow>(`${CHANGE_LIST} WHERE d.publication_suppressed = 0
+    ORDER BY (c.suppressed_reason IS NULL) DESC, COALESCE(v.effective_at, substr(v.observed_at,1,10)) DESC LIMIT ?`, [limit])
 
 export const versionCounts = (env: Env) =>
-  env.DB.prepare('SELECT document_id, COUNT(*) AS n, MIN(COALESCE(effective_at, substr(observed_at,1,10))) AS oldest FROM versions GROUP BY document_id')
-    .all<{ document_id: string; n: number; oldest: string }>().then((r) => new Map(r.results.map((x) => [x.document_id, x])))
+  dbOf(env).all<{ document_id: string; n: number; oldest: string }>(
+    'SELECT document_id, COUNT(*) AS n, MIN(COALESCE(effective_at, substr(observed_at,1,10))) AS oldest FROM versions GROUP BY document_id')
+    .then((r) => new Map(r.map((x) => [x.document_id, x])))
+
+/** 문서마다 가장 최근 변경 하나. 홈 카드와 검색 결과에 "최근 변경" 을 적는 데 쓴다. */
+export const latestChanges = (env: Env) =>
+  dbOf(env).all<ChangeListRow & { rn: number }>(`SELECT * FROM (SELECT ${CHANGE_COLS},
+      ROW_NUMBER() OVER (PARTITION BY c.document_id ORDER BY COALESCE(v.effective_at, substr(v.observed_at,1,10)) DESC, v.observed_at DESC) AS rn
+    ${CHANGE_FROM} WHERE d.publication_suppressed = 0) AS t WHERE rn = 1`)
+    .then((r) => new Map(r.map(({ rn: _rn, ...c }) => [c.document_id, c as ChangeListRow])))
+
+export const countChanges = (env: Env) =>
+  dbOf(env).first<{ n: number }>('SELECT COUNT(*) AS n FROM changes c JOIN documents d ON d.id = c.document_id WHERE d.publication_suppressed = 0')
+    .then((r) => r?.n ?? 0)
+
+// ── 조회 집계. 홈의 "이번 주 조회 상위 기업" 에만 쓴다. 개인을 식별하는 정보는 저장하지 않는다. ──
+export const today = () => now().slice(0, 10)
+
+/** 문서 하나의 오늘 조회수를 1 올린다. 집계가 실패해도 페이지는 떠야 하므로 예외를 삼킨다. */
+export async function recordView(env: Env, documentId: string) {
+  try {
+    await dbOf(env).run(`INSERT INTO document_views (document_id, day, n) VALUES (?1, ?2, 1)
+      ON CONFLICT(document_id, day) DO UPDATE SET n = document_views.n + 1`, [documentId, today()])
+  } catch (e) { console.warn('recordView', String(e)) }
+}
+
+/** 최근 7일(오늘 포함) 문서별 조회수 합. */
+export const weeklyViews = (env: Env, days = 7) => {
+  const since = new Date(Date.now() - (days - 1) * 86_400_000).toISOString().slice(0, 10)
+  return dbOf(env).all<{ document_id: string; n: number }>('SELECT document_id, SUM(n) AS n FROM document_views WHERE day >= ? GROUP BY document_id', [since])
+    .then((r) => new Map(r.map((x) => [x.document_id, x.n])))
+}
+
+// ── 회원·세션 (migrations/0004_users.sql) ────────────────────────
+export interface UserRow {
+  id: string; email: string; name: string | null; picture: string | null; password_hash: string | null; google_sub: string | null
+  created_at: string; last_login_at: string | null; feed_key?: string | null
+}
+export interface SessionRow { id: string; user_id: string; created_at: string; expires_at: string; user_agent: string | null }
+
+export const findUserByEmail = (env: Env, email: string) => dbOf(env).first<UserRow>('SELECT * FROM users WHERE email = ?', [email])
+export const findUserByGoogleSub = (env: Env, sub: string) => dbOf(env).first<UserRow>('SELECT * FROM users WHERE google_sub = ?', [sub])
+export const getUser = (env: Env, id: string) => dbOf(env).first<UserRow>('SELECT * FROM users WHERE id = ?', [id])
+
+export const findUserByFeedKey = (env: Env, key: string) => dbOf(env).first<UserRow>('SELECT * FROM users WHERE feed_key = ?', [key])
+
+export async function insertUser(env: Env, u: UserRow) {
+  await dbOf(env).run('INSERT INTO users (id, email, name, picture, password_hash, google_sub, created_at, last_login_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [u.id, u.email, u.name, u.picture, u.password_hash, u.google_sub, u.created_at, u.last_login_at])
+}
+
+export async function updateUser(env: Env, id: string, patch: Partial<UserRow>) {
+  const keys = Object.keys(patch)
+  if (!keys.length) return
+  await dbOf(env).run(`UPDATE users SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`, [...keys.map((k) => (patch as any)[k]), id])
+}
+
+export async function insertSession(env: Env, s: SessionRow) {
+  await dbOf(env).run('INSERT INTO sessions (id, user_id, created_at, expires_at, user_agent) VALUES (?, ?, ?, ?, ?)', [s.id, s.user_id, s.created_at, s.expires_at, s.user_agent])
+}
+
+/** 살아 있는 세션의 회원. 만료됐으면 없는 것과 같다. */
+export const sessionUser = (env: Env, sessionId: string, at: string) =>
+  dbOf(env).first<UserRow>('SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ? AND s.expires_at > ?', [sessionId, at])
+
+export const deleteSession = (env: Env, sessionId: string) => dbOf(env).run('DELETE FROM sessions WHERE id = ?', [sessionId])
+export const deleteExpiredSessions = (env: Env) => dbOf(env).run('DELETE FROM sessions WHERE expires_at <= ?', [now()])
+export const countUsers = (env: Env) => dbOf(env).first<{ n: number }>('SELECT COUNT(*) AS n FROM users').then((r) => r?.n ?? 0)
+
+export const deleteUserSessions = (env: Env, userId: string) => dbOf(env).run('DELETE FROM sessions WHERE user_id = ?', [userId])
+
+/** 탈퇴. 관심·세션·회원을 한 트랜잭션으로 지운다. 조회 집계에는 회원이 없으니 남는 것이 없다. */
+export const deleteUser = (env: Env, userId: string) => dbOf(env).batch([
+  stmt('DELETE FROM watches WHERE user_id = ?', userId),
+  stmt('DELETE FROM sessions WHERE user_id = ?', userId),
+  stmt('DELETE FROM users WHERE id = ?', userId),
+])
+
+// ── 관심 약관 (migrations/0005_watches.sql) ─────────────────────
+export const listWatched = (env: Env, userId: string) =>
+  dbOf(env).all<{ document_id: string }>('SELECT document_id FROM watches WHERE user_id = ? ORDER BY created_at DESC', [userId])
+    .then((r) => new Set(r.map((x) => x.document_id)))
+
+export const addWatch = (env: Env, userId: string, documentId: string) =>
+  dbOf(env).run('INSERT INTO watches (user_id, document_id, created_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING', [userId, documentId, now()])
+
+export const removeWatch = (env: Env, userId: string, documentId: string) =>
+  dbOf(env).run('DELETE FROM watches WHERE user_id = ? AND document_id = ?', [userId, documentId])
+
+/** 관심 문서들의 최근 변경. 개인 RSS 와 내 페이지가 쓴다. */
+export const watchedChanges = (env: Env, userId: string, limit = 30) =>
+  dbOf(env).all<ChangeListRow>(`${CHANGE_LIST} JOIN watches w ON w.document_id = c.document_id AND w.user_id = ?
+    WHERE d.publication_suppressed = 0 ORDER BY COALESCE(v.effective_at, substr(v.observed_at,1,10)) DESC, v.observed_at DESC LIMIT ?`, [userId, limit])
+
+/** 변경 기록 목록에 주제·중요도 거르기. categories 는 JSON 배열 문자열이라 따옴표째로 찾는다. */
+export const listChanges = (env: Env, f: { cat?: string; minImportance?: number; limit?: number } = {}) => {
+  const where = ['d.publication_suppressed = 0']
+  const params: unknown[] = []
+  if (f.cat) { where.push('c.categories LIKE ?'); params.push(`%"${f.cat}"%`) }
+  if (f.minImportance) { where.push('c.importance >= ?'); params.push(f.minImportance) }
+  params.push(f.limit ?? 100)
+  return dbOf(env).all<ChangeListRow>(`${CHANGE_LIST} WHERE ${where.join(' AND ')}
+    ORDER BY (c.suppressed_reason IS NULL) DESC, COALESCE(v.effective_at, substr(v.observed_at,1,10)) DESC LIMIT ?`, params)
+}
+
+// ── 로그인 시도 제한 ──────────────────────────────────────────
+export interface AttemptRow { key: string; window_start: string; n: number }
+export const getAttempt = (env: Env, key: string) => dbOf(env).first<AttemptRow>('SELECT * FROM login_attempts WHERE key = ?', [key])
+export const putAttempt = (env: Env, a: AttemptRow) =>
+  dbOf(env).run('INSERT INTO login_attempts (key, window_start, n) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET window_start = excluded.window_start, n = excluded.n', [a.key, a.window_start, a.n])
+export const clearAttempts = (env: Env, keys: string[]) => keys.length ? dbOf(env).batch(keys.map((k) => stmt('DELETE FROM login_attempts WHERE key = ?', k))) : Promise.resolve()
+export const purgeAttempts = (env: Env, before: string) => dbOf(env).run('DELETE FROM login_attempts WHERE window_start < ?', [before])

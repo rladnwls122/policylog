@@ -70,7 +70,8 @@ describe('공개 표면 (D-1)', () => {
     const list = await (await get(`/api/v1/policies/${cfg.id}/versions`)).json<any[]>()
     const changes = await (await get('/api/v1/changes')).json<any[]>()
     const urls = [
-      '/', '/bot', `/policies/${cfg.id}`, `/policies/${cfg.id}/feed.xml`,
+      '/', '/bot', '/intro', '/changes', '/changes?cat=OVERSEAS_TRANSFER', '/join', '/login', '/robots.txt', '/sitemap.xml',
+      '/search?q=' + encodeURIComponent('당근'), `/policies/${cfg.id}`, `/policies/${cfg.id}/feed.xml`,
       ...list.map((v) => `/policies/${cfg.id}/versions/${v.id}`),
       ...list.map((v) => `/api/v1/policies/${cfg.id}/versions/${v.id}`),
       '/api/v1/services', '/api/v1/changes', `/api/v1/policies/${cfg.id}/versions`,
@@ -116,7 +117,7 @@ describe('멱등성', () => {
   })
 
   it('정규화 프로필이 다르면 비교 자체를 거부한다 (§21)', async () => {
-    const [a, b] = await E.DB.prepare('SELECT * FROM versions WHERE document_id = ? LIMIT 2').bind(cfg.id).all<any>().then((r) => r.results)
+    const [a, b] = await E.DB!.prepare('SELECT * FROM versions WHERE document_id = ? LIMIT 2').bind(cfg.id).all<any>().then((r) => r.results)
     await expect(createChange(E, { ...a, normalization_profile_id: 'v0' }, b, null)).rejects.toThrow('CROSS_PROFILE')
   })
 })

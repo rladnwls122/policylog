@@ -1,26 +1,28 @@
 # POLICYLOG
 
-국내 서비스의 이용약관·개인정보 처리방침 변경 이력을 보존하고 diff 를 보여주는 아카이브. Cloudflare Workers 한 개로 돈다.
+국내 서비스의 이용약관·개인정보 처리방침 변경 이력을 보존하고 diff 를 보여주는 아카이브. Cloudflare Workers 한 개와 PostgreSQL 하나로 돈다.
 
 설계서는 `POLICYLOG_IMPLEMENTATION_PLAN_v3.md` 이고, 이 저장소는 그중 **M1(아카이브가 동작한다)** 범위를 구현한다. 문서 안의 §번호는 그 설계서의 절 번호다.
 
 ## 스택
 
-Cloudflare 로 유통하므로 전부 Cloudflare 원시 기능으로 맞췄다. 설계서 §11 의 NestJS·Redis·BullMQ·S3·Playwright 스택은 M1 에 필요 없다(§77).
+Cloudflare 로 유통하므로 저장소만 빼고 전부 Cloudflare 원시 기능으로 맞췄다. 설계서 §11 의 NestJS·Redis·BullMQ·S3·Playwright 스택은 M1 에 필요 없다(§77).
 
 | 설계서 §11 | 여기 | 이유 |
 |---|---|---|
-| NestJS + Next.js | Workers + Hono + JSX 서버 렌더링 | 앱 하나. 클라이언트 JS 0 바이트 |
-| PostgreSQL | D1 (SQLite) | 문서 77건·버전 수백 건 규모. 쿼리 그대로 |
+| NestJS + Next.js | Workers + Hono + JSX 서버 렌더링 | 앱 하나. 클라이언트 JS 는 검색 즉시 거르기·스플래시 닫기 한 조각뿐이고, 없어도 모든 화면이 동작한다 |
+| PostgreSQL | PostgreSQL (Hyperdrive 경유, `pg` 드라이버) | 설계서 그대로. 테스트는 같은 마이그레이션을 D1(SQLite) 에 넣고 돈다 — 쿼리는 두 엔진이 함께 읽는 문법만 쓴다 (`src/sql.ts`) |
 | Redis + BullMQ | Cron Trigger | 큐가 필요할 만큼 작업이 많지 않다 |
 | S3 | R2 (비공개 버킷) | 원본 스냅샷 보관 |
 | Cheerio | HTMLRewriter | 런타임 내장. 스트리밍 파서라 의존성 0 |
 | Playwright | 없음 | 지금 수집하는 8건은 모두 정적이다. 렌더링은 §85 대상 |
 | OpenSearch | 없음 | — |
 
-의존성은 `hono` 와 `diff` 둘뿐이다.
+의존성은 `hono`·`diff`·`pg` 와 렌더링 수집용 `@cloudflare/puppeteer` 넷이다.
 
 ## 지금 상태 (2026-09-07 실측)
+
+수집 결과는 아래와 같고, 저장소는 이날 D1 에서 PostgreSQL 로 옮겼다 (아래 "저장소").
 
 로컬 워커를 실제 사이트에 붙여 수집한 결과다. 목업 없음. 문서 79건 중 **수집 중 16, 렌더링 대기 33, 수집 불가 30** 이다.
 
@@ -122,15 +124,31 @@ node tools/survey.mjs --blocker=WAF
 
 `test/api.test.ts` 의 "멱등성" 블록이 이를 실제 워커·실제 D1 에서 확인한다.
 
+## 저장소 (PostgreSQL)
+
+문서·버전·변경·조회 집계 전부 PostgreSQL 한 곳에 있다. 원본 스냅샷만 R2 다.
+
+- 엔진 선택은 `src/sql.ts` 가 한다. `DATABASE_URL` → D1 바인딩 → `HYPERDRIVE` 순이다. 운영 `wrangler.jsonc` 에는 D1 이 없으니 Hyperdrive 가 잡히고, 테스트는 miniflare 의 D1 로 돈다.
+- Workers 는 한 요청에서 연 소켓을 다른 요청에서 못 쓴다. 그래서 요청(또는 크론 실행)마다 연결을 열고 응답 뒤에 닫는다 — `withDb` 가 그 범위이고 안에서 `dbOf(env)` 는 같은 연결을 돌려준다.
+- 쿼리는 SQLite 와 Postgres 가 함께 읽는 부분집합만 쓴다: `?`/`?N` 자리표시자, `ON CONFLICT DO NOTHING` / `DO UPDATE SET x = excluded.x`, `substr`, `COALESCE`, 윈도 함수. `INSERT OR IGNORE` 같은 엔진별 문법은 없다. 그래서 `migrations/*.sql` 하나가 두 엔진에 그대로 들어간다.
+- `sslmode=require` 는 libpq 의 뜻대로 **암호화만** 한다 (`pg` 기본값은 이를 verify-full 로 다뤄 Aiven 처럼 자체 CA 를 쓰는 서버를 거절한다). 서버를 검증하려면 CA(PEM) 를 `DATABASE_CA` 로 주거나 `sslmode=verify-full` 을 쓴다.
+- 운영은 **Hyperdrive** 를 거친다. 워커에서 직접 TLS 로 자체 서명 CA 서버에 붙는 길은 없고, Hyperdrive 가 연결 풀과 TLS 를 맡는다.
+
+```bash
+# 스키마 적용. migrations/*.sql 을 이름순으로 넣고 schema_migrations 에 기록한다. 두 번 돌려도 같다.
+DATABASE_URL='postgres://USER:PASSWORD@HOST:PORT/DB?sslmode=require' npm run db:migrate
+```
+
 ## 로컬 실행
 
 ```bash
 npm install
-npm run db:migrate:local
+cp .dev.vars.example .dev.vars    # DATABASE_URL, ADMIN_PASSWORD 를 채운다. 커밋되지 않는다
+DATABASE_URL=... npm run db:migrate
 npm run dev                       # http://127.0.0.1:8788
 ```
 
-`.dev.vars` 에 `ADMIN_PASSWORD` 를 넣으면 `/admin` 이 열린다.
+`wrangler dev` 는 `wrangler.jsonc` 의 Hyperdrive 바인딩 때문에 로컬 연결 문자열을 요구한다. `.dev.vars` 의 `DATABASE_URL` 이 우선이므로 `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE` 에는 아무 값이나 넣어도 되고, 로컬 workerd 가 서버 인증서를 거절하면 `wrangler dev --remote` 로 실제 Hyperdrive 를 쓴다.
 
 ```bash
 # 실제 사이트에서 이력 백필 (당근 30건, 5초 간격이라 2분 반쯤 걸린다)
@@ -144,22 +162,26 @@ curl -u admin:devpassword -X POST http://127.0.0.1:8788/admin/run
 ## 테스트
 
 ```bash
-npm test          # 실제 워커 런타임(workerd)에서 65개
+npm test          # 실제 워커 런타임(workerd)에서 97개. 저장소는 miniflare 의 D1 이고 마이그레이션은 운영과 같은 파일이다
 npx tsc --noEmit
 ```
 
 픽스처는 실제 서비스에서 받은 한국어 정책 HTML 이다(`test/fixtures/`). 합성 픽스처는 쓰지 않는다 — 부칙 파싱, 표 구조, 인코딩 문제를 건드리지 못한다(§53).
 
+Postgres 경로(마이그레이션 도구 → `src/db.ts` 전 함수 → Hono 앱의 공개·관리 라우트)는 임베디드 PostgreSQL 18 에서 따로 확인했다. workerd 안에서 도는 테스트는 바깥 Postgres 에 붙지 못하므로 자동 테스트에는 넣지 않았다.
+
 ## 배포
 
 ```bash
 npx wrangler login
-npx wrangler d1 create policylog          # 출력된 database_id 를 wrangler.jsonc 에 넣는다
+npx wrangler hyperdrive create policylog --connection-string="$DATABASE_URL"   # 출력된 id 를 wrangler.jsonc 의 hyperdrive.id 에 넣는다
 npx wrangler r2 bucket create policylog-raw
 npx wrangler secret put ADMIN_PASSWORD
-npm run db:migrate                        # 원격 D1 마이그레이션
+DATABASE_URL=... npm run db:migrate       # Postgres 스키마
 npm run deploy
 ```
+
+Hyperdrive 의 `sslmode=require` 는 CA 를 검증하지 않는다. 검증하려면 `wrangler cert upload ca-cert` 로 CA 를 올리고 `sslmode=verify-full` 로 만든다.
 
 Browser Rendering(§85)은 유료 Workers 플랜에서만 붙는다. 무료 플랜이면 `wrangler.jsonc` 의 `browser` 바인딩을 지워도 된다 — 렌더링 필요 문서가 `수집 준비 중` 으로 남을 뿐 나머지는 그대로 돈다.
 
@@ -171,20 +193,57 @@ Browser Rendering(§85)은 유료 Workers 플랜에서만 붙는다. 무료 플�
 
 ```
 src/
+  sql.ts         저장소 어댑터. Postgres(pg) · 테스트용 D1, 요청 단위 연결 범위
+  auth.ts        회원: PBKDF2 비밀번호 · 세션 · Google OpenID Connect
   documents.ts   문서 카탈로그. 설정은 서비스가 아니라 문서 단위 (§19)
   acquire.ts     robots 판정 · SSRF 가드 · fetch · 탐색 · 프로브 · 하베스터 · 백필 · 폴링
                  fetch 는 여기에만 있다
   extract.ts     HTMLRewriter 로 본문 텍스트와 표 추출
   normalize.ts   정규화 · 해시 · 빈 DOM 게이트 · 날짜 추출 · 조문 분할
   diff.ts        조문 diff · 표 행 diff · 규칙 분류
-  db.ts          D1 접근. versions 의 UPDATE/DELETE 는 여기 없다
+  db.ts          저장소 접근. versions 의 UPDATE/DELETE 는 여기 없다
   public.ts      D-1 발췌 제한
-  views.tsx      서버 렌더링 페이지
+  rank.ts        홈 순서: 이번 주 조회 상위 세 장 · 그리드 순서 · 검색 매칭 (순수 함수)
+  views.tsx      서버 렌더링 페이지와 디자인 체계
   index.tsx      라우트 · 공개 API · /admin · 크론
 tools/
+  pg-migrate.mjs migrations/*.sql 을 Postgres 에 적용
   discover.mjs   홈페이지에서 약관 링크 찾기
   survey.mjs     후보 URL 을 실제 파이프라인으로 재보기
 ```
+
+## 화면
+
+- **스플래시** — 첫 방문(비회원)이면 홈 위에 소개 화면이 덮인다: 목적, 무엇을 하는지, 어떻게 쓰는지, 지키는 원칙. 표제가 차례로 떠오르고, 뒤에서 구체가 떠다니며, 예시 조문에 지움·넣음 표시가 반복해서 쓸려 지나간다. "시작하기" 를 누르면 `pl_intro` 쿠키(값 하나, 식별자 아님) 를 남기고 다시 보이지 않는다. 서버가 쿠키를 보고 그리므로 깜빡임이 없고, JS 가 없으면 `/start` 로 가서 같은 일을 한다. `/intro` 에서 언제든 다시 볼 수 있다.
+- **홈 상단** — 검색창과 아카이브 현황, 그리고 **이번 주 조회 상위 기업** 세 장. 카드에는 그 문서의 가장 최근 변경 중 가장 무거운 조문의 redline 이 그대로 들어 있다. 순위는 최근 7일 조회수, 같으면 최근 변경, 그다음 보존 버전 수다 (`src/rank.ts`). 한 기업은 한 장이고 수집 중인 문서만 후보다.
+- **홈 하단** — 나머지 문서 전부를 그리드 카드로. 수집 중 → 준비 중 → 못 가져옴 순이고, 같은 상태 안에서는 최근 변경 순. 검색창에 낱말을 넣으면 카드가 즉시 걸러지고, 상태 칩으로도 거른다. JS 가 없으면 같은 규칙으로 `/search` 가 서버에서 거른다.
+- **조회 집계** — 문서·버전·변경 화면을 열면 `document_views` 의 (문서, 날짜) 정수 하나가 오른다. 누가 봤는지는 남기지 않는다. 상위 세 장을 고르는 데만 쓴다.
+- **회원 제한** — 비회원은 홈과 검색에서 카드를 여섯 장까지만 본다 (`PREVIEW_CARDS`, `src/rank.ts`). 상위 세 장은 누구에게나 보이고, 문서·버전·변경 화면과 API 는 그대로 공개다 — 제한은 가입을 이끄는 장치이지 보안 경계가 아니다. 감춘 카드 대신 서는 안내에는 못 가져오는 문서 수도 그대로 적힌다 (§2.7).
+- **서체** — 본문·UI 는 Pretendard(가변, jsDelivr 동적 서브셋), 표제는 Noto Serif KR, 날짜·숫자·라벨은 JetBrains Mono. 약관과 시행일을 다루는 기록물이라 표제에 명조의 무게를 주고, 본문은 한국 제품 UI 의 표준 서체로 읽기 쉽게 한다. 셋 다 unicode-range 로 쪼개져 화면 하나가 받는 양은 수십 KB 이고, 시스템 서체(Malgun Gothic)로 떨어지는 일이 없다.
+- **디자인** — 뉴모피즘. 표면과 바탕이 같은 색이고 깊이는 두 방향의 그림자로만 낸다. 색 사건은 redline(지움·넣음)과 accent(검색 포커스·주요 버튼·순위) 둘뿐이다. 화면 이동은 문서 간 View Transition, 카드는 순서대로 떠오르고 올리면 뜨고 누르면 가라앉는다. `prefers-reduced-motion` 이면 전부 끈다.
+- **다크 모드** — 기본은 시스템 설정을 따르고, 상단 오른쪽의 해·달 버튼으로 고정한다. 선택은 `pl_theme` 쿠키(dark·light)에 남고 서버가 `<html data-theme>` 으로 그리므로 새로고침해도 깜빡이지 않는다. 다크 토큰은 한 벌이고 "시스템이 어둡고 밝게 고정하지 않음" 과 "어둡게 고정함" 두 선택자가 같은 문자열을 받는다 (`src/views.tsx` 의 `DARK`). JS 가 없으면 버튼이 `/theme` 폼으로 동작하고, 있으면 그 자리에서 0.4초 동안 색이 넘어간다. 브라우저 상단 색(`theme-color`)도 함께 바뀐다.
+
+## 회원이 얻는 것
+
+- **관심 약관** — 카드와 문서 화면의 별을 누르면 담긴다 (`watches`). 홈 상단에 "내 관심 약관" 이 먼저 서고, `/me` 에 모아 보인다. 비회원이 별을 누르면 로그인으로 갔다가 그 자리로 돌아온다.
+- **개인 RSS** — `/me/feed.xml?key=…`. 관심 약관 전체의 변경이 피드 하나로 온다. RSS 리더는 쿠키를 못 보내므로 주소의 키가 열쇠다. `/me` 에서 키를 새로 만들면 옛 주소는 그 자리에서 죽는다.
+- **계정** — 표시 이름 변경, 모든 기기에서 로그아웃, 탈퇴(관심·세션·회원을 한 트랜잭션으로 지운다).
+
+## 탐색
+
+- **변경 기록 거르기** — `/changes?cat=OVERSEAS_TRANSFER&imp=hi`. 주제는 분류표의 키, 중요도는 `hi`(35 이상)·`mid`(20 이상). 모르는 값은 무시한다.
+- **문서 타임라인** — 문서 화면의 버전 목록은 표가 아니라 타임라인이다. 점의 색이 그 버전이 만든 변경의 중요도다.
+- **이웃 변경** — 변경 화면 아래에서 같은 문서의 이전·다음 변경으로 간다 (`rel=prev/next`).
+- **검색 엔진** — `/robots.txt`, `/sitemap.xml`(문서 전부와 최근 변경 500건), 모든 화면에 canonical·OpenGraph 메타. 회원·인증·검색 화면은 `noindex`. API 와 피드는 5분 캐시.
+
+## 회원·로그인 (`src/auth.ts`)
+
+- **이메일 가입** — PBKDF2-SHA256 100,000회(WebCrypto), 소금 16바이트. 메일을 보내지 않으므로 이메일 인증과 비밀번호 재설정은 없다. 같은 이메일로 Google 로그인하면 그 계정에 이어지니, 비밀번호를 잊으면 그 길로 들어온다.
+- **Google 로그인** — OpenID Connect 인가 코드 + PKCE(S256). ID 토큰은 Google 토큰 엔드포인트에서 client_secret 으로 직접 받으므로 서명을 다시 검증하지 않고, 발급자·대상(client_id)·만료·이메일 검증 여부를 본다. 같은 Google 계정은 같은 회원이고, 같은 이메일의 이메일 가입 계정이 있으면 거기에 잇는다.
+- **세션** — 30일. 무작위 토큰의 SHA-256 만 DB 에 있고 원문은 HttpOnly 쿠키에만 있다. 가입·로그인·로그아웃은 POST 폼이고 SameSite=Lax 에 더해 Origin 을 확인한다. 만료 세션은 크론이 지운다.
+- **설정** — Google Cloud Console 에서 OAuth 클라이언트(웹)를 만들고 승인된 리디렉션 URI 에 `https://<호스트>/auth/google/callback` 을 넣는다 (로컬은 `http://localhost:8788/auth/google/callback`). `GOOGLE_CLIENT_ID` 는 `wrangler.jsonc` 의 vars, `GOOGLE_CLIENT_SECRET` 은 `npx wrangler secret put GOOGLE_CLIENT_SECRET`. 둘 다 없으면 Google 버튼이 빠지고 이메일 가입만 된다.
+- **무료 플랜** — PBKDF2 100,000회는 CPU 10ms 한도를 넘길 수 있다. 그러면 `PASSWORD_ITERATIONS` 를 낮춘다. 해시 문자열에 횟수가 들어 있어 기존 계정은 그대로 검증된다.
+- **시도 제한** — 이메일과 IP(`CF-Connecting-IP`) 각각 15분에 10회를 넘기면 그 창이 끝날 때까지 막는다 (`login_attempts`). 성공하면 지우고, 크론이 하루 지난 기록을 치운다.
 
 ## 렌더링 수집 (§85)
 

@@ -42,9 +42,19 @@ describe('§2.6: 회피 수단이 코드에 존재하지 않는다', () => {
     for (const [p, s] of source())
       expect(s, p).not.toMatch(/proxy(Url|Pool|Rotat)|residential|navigator\.webdriver|stealth|undetected|solveCaptcha|ja3/i)
   })
-  it('fetch 호출은 acquire.ts 안에만 있다', () => {
-    for (const [p, s] of source())
-      if (!p.endsWith('acquire.ts')) expect(s.replace(/app\.fetch|\.fetch\b/g, ''), p).not.toMatch(/(?<![.\w])fetch\s*\(/)
+  it('fetch 호출은 acquire.ts 와, Google 토큰 교환 하나뿐인 auth.ts 안에만 있다', () => {
+    for (const [p, s] of source()) {
+      if (p.endsWith('acquire.ts')) continue
+      const body = s.replace(/app\.fetch|\.fetch\b/g, '')
+      if (p.endsWith('auth.ts')) {
+        // 수집이 아니라 로그인이다. 호스트가 상수로 고정된 호출 하나만 허용한다.
+        expect(body.match(/(?<![.\w])fetch\s*\(/g) ?? [], p).toHaveLength(1)
+        expect(body, p).toMatch(/fetch\(GOOGLE_TOKEN_URL,/)
+        expect(s, p).toMatch(/GOOGLE_TOKEN_URL = 'https:\/\/oauth2\.googleapis\.com\/token'/)
+        continue
+      }
+      expect(body, p).not.toMatch(/(?<![.\w])fetch\s*\(/)
+    }
   })
 })
 
