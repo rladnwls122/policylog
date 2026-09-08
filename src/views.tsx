@@ -26,9 +26,20 @@ import { MIN_PASSWORD } from './auth'
 //
 // 움직임: 화면 이동은 문서 간 View Transition(지원 브라우저) 이고, 아니면 main 이 떠오른다.
 // 카드는 들어올 때 순서대로 떠오르고, 올리면 살짝 뜨고, 누르면 가라앉는다. prefers-reduced-motion 이면 전부 끈다.
+// 다크 토큰은 한 벌이다. 시스템이 어두운데 밝게 고정하지 않았을 때와, 어둡게 고정했을 때 두 선택자가 같은 문자열을 받는다.
+const DARK = `
+  color-scheme:dark;
+  --bg:#20242A;--well:#1B1F24;--ink:#E9ECF1;--ink-2:#9AA3B2;--ink-3:#6B7482;--line:rgba(233,236,241,.08);
+  --hi:rgba(255,255,255,.055);--lo:rgba(0,0,0,.55);
+  --accent:#8193FF;--accent-ink:#0F1220;--accent-soft:rgba(129,147,255,.18);
+  --ok:#5CC48C;--warn:#E5B35A;--stop:#6B7482;
+  --del:#42201B;--del-ink:#F3AAA1;--ins:#183523;--ins-ink:#9BD8AD;
+`
+export const THEME_COLOR = { light: '#E8ECF2', dark: '#20242A' }
+
 const CSS = `
 :root{
-  color-scheme:light dark;
+  color-scheme:light;
   --bg:#E8ECF2;--well:#E0E5EC;--ink:#1E2430;--ink-2:#67707F;--ink-3:#9AA3B1;--line:rgba(30,36,48,.08);
   --hi:rgba(255,255,255,.92);--lo:rgba(134,148,170,.42);
   --accent:#4C63E8;--accent-ink:#FFFFFF;--accent-soft:rgba(76,99,232,.14);
@@ -46,13 +57,11 @@ const CSS = `
   --ease:cubic-bezier(.2,.7,.2,1);
   --gut:clamp(16px,4vw,40px);--rail:1240px;
 }
-@media(prefers-color-scheme:dark){:root{
-  --bg:#20242A;--well:#1B1F24;--ink:#E9ECF1;--ink-2:#9AA3B2;--ink-3:#6B7482;--line:rgba(233,236,241,.08);
-  --hi:rgba(255,255,255,.045);--lo:rgba(0,0,0,.55);
-  --accent:#8193FF;--accent-ink:#0F1220;--accent-soft:rgba(129,147,255,.18);
-  --ok:#5CC48C;--warn:#E5B35A;--stop:#6B7482;
-  --del:#42201B;--del-ink:#F3AAA1;--ins:#183523;--ins-ink:#9BD8AD;
-}}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){${DARK}}}
+:root[data-theme=dark]{${DARK}}
+/* 테마를 바꾸는 순간만 색이 부드럽게 넘어간다. JS 가 450ms 동안 theming 을 붙인다. */
+html.theming,html.theming *,html.theming *::before,html.theming *::after{
+  transition:background-color .4s var(--ease),color .4s var(--ease),box-shadow .4s var(--ease),border-color .4s var(--ease)!important}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html{scroll-behavior:smooth}
@@ -325,6 +334,22 @@ footer .brand{font-size:13px}
 .auth-form .btn{margin-top:4px}
 .err{border-radius:var(--r-sm);padding:12px 16px;color:var(--del-ink);background:var(--del);font-size:14px;margin:0}
 
+/* 테마 토글. 밝을 때는 달(어둡게), 어두울 때는 해(밝게) 폼만 보인다 — JS 없이도 맞는 쪽이 눌린다. */
+.theme{display:inline-flex;margin-left:4px}
+.theme form{display:none;margin:0}
+.theme form.to-dark{display:inline-flex}
+@media(prefers-color-scheme:dark){
+  :root:not([data-theme=light]) .theme form.to-dark{display:none}
+  :root:not([data-theme=light]) .theme form.to-light{display:inline-flex}
+}
+:root[data-theme=dark] .theme form.to-dark{display:none}
+:root[data-theme=dark] .theme form.to-light{display:inline-flex}
+.iconbtn{width:36px;height:36px;border-radius:50%;border:0;background:var(--bg);box-shadow:var(--raise-sm);color:var(--ink-2);
+  display:grid;place-items:center;cursor:pointer;padding:0;transition:box-shadow .25s var(--ease),color .25s,transform .25s var(--ease)}
+.iconbtn svg{width:17px;height:17px}
+.iconbtn:hover{color:var(--accent);transform:translateY(-1px);box-shadow:var(--raise)}
+.iconbtn:active{transform:none;box-shadow:var(--sink-sm)}
+
 /* 스플래시·소개 움직임 */
 .intro-hero{position:relative}
 .intro-hero>*{position:relative;z-index:1}
@@ -371,6 +396,15 @@ if(s){
   s.addEventListener('click',function(e){var a=e.target.closest('[data-start]');if(!a)return;e.preventDefault();go()});
   d.addEventListener('keydown',function(e){if(e.key==='Escape'&&s.isConnected)go()});
 }
+d.addEventListener('click',function(e){
+  var b=e.target.closest('[data-theme-set]');if(!b)return;e.preventDefault();
+  var t=b.getAttribute('data-theme-set'),h=d.documentElement;
+  h.classList.add('theming');h.setAttribute('data-theme',t);
+  d.cookie='pl_theme='+t+';max-age=31536000;path=/;samesite=lax';
+  [].slice.call(d.querySelectorAll('meta[name=theme-color]')).forEach(function(m){m.remove()});
+  var m=d.createElement('meta');m.name='theme-color';m.content=t==='dark'?'${THEME_COLOR.dark}':'${THEME_COLOR.light}';d.head.appendChild(m);
+  setTimeout(function(){h.classList.remove('theming')},450);
+});
 var q=d.getElementById('q'),grid=d.getElementById('grid');
 if(q&&grid){
   var cards=[].slice.call(d.querySelectorAll('[data-q]')),count=d.getElementById('count'),empty=d.getElementById('empty'),
@@ -404,12 +438,35 @@ const Account: FC<{ user?: UserRow | null }> = ({ user }) => user
     </span>
   : <span class="me"><a href="/login">로그인</a><a class="join" href="/join">회원가입</a></span>
 
-export const Layout: FC<PropsWithChildren<{ title: string; siteUrl: string; feed?: string; path?: string; description?: string; user?: UserRow | null }>> = ({ title, feed, path, description, user, children }) => (
-  <html lang="ko">
+export type Theme = 'light' | 'dark'
+
+const ThemeToggle: FC<{ next: string }> = ({ next }) => (
+  <span class="theme">
+    <form method="post" action="/theme" class="to-dark">
+      <input type="hidden" name="theme" value="dark" /><input type="hidden" name="next" value={next} />
+      <button class="iconbtn" type="submit" aria-label="다크 모드로 바꾸기" title="다크 모드" data-theme-set="dark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" /></svg>
+      </button>
+    </form>
+    <form method="post" action="/theme" class="to-light">
+      <input type="hidden" name="theme" value="light" /><input type="hidden" name="next" value={next} />
+      <button class="iconbtn" type="submit" aria-label="라이트 모드로 바꾸기" title="라이트 모드" data-theme-set="light">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>
+      </button>
+    </form>
+  </span>
+)
+
+/** theme 이 없으면 시스템 설정을 따른다. here 는 테마를 바꾼 뒤 돌아올 곳. */
+export const Layout: FC<PropsWithChildren<{ title: string; siteUrl: string; feed?: string; path?: string; description?: string; user?: UserRow | null; theme?: Theme; here?: string }>> = ({ title, feed, path, description, user, theme, here, children }) => (
+  <html lang="ko" data-theme={theme}>
     <head>
       <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>{title} · POLICYLOG</title>
       <meta name="description" content={description ?? '한국 서비스의 이용약관과 개인정보 처리방침을 매일 확인해 조문 단위로 변경을 기록하는 공개 아카이브'} />
+      {theme
+        ? <meta name="theme-color" content={THEME_COLOR[theme]} />
+        : <><meta name="theme-color" media="(prefers-color-scheme: light)" content={THEME_COLOR.light} /><meta name="theme-color" media="(prefers-color-scheme: dark)" content={THEME_COLOR.dark} /></>}
       {feed && <link rel="alternate" type="application/rss+xml" href={feed} />}
       {/* 인장. 시행일 도장과 같은 표시다. */}
       <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1.5' y='1.5' width='13' height='13' rx='3' fill='none' stroke='%23C0342A' stroke-width='2'/%3E%3Cpath d='M4.5 8h7' stroke='%23C0342A' stroke-width='2'/%3E%3C/svg%3E" />
@@ -427,6 +484,7 @@ export const Layout: FC<PropsWithChildren<{ title: string; siteUrl: string; feed
           <nav aria-label="주요">
             {NAV.map(([href, label]) => <a href={href} aria-current={path === href ? 'page' : undefined}>{label}</a>)}
             <Account user={user} />
+            <ThemeToggle next={here ?? path ?? '/'} />
           </nav>
         </div>
       </header>

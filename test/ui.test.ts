@@ -70,3 +70,28 @@ describe('소개 · 검색 · 변경 기록', () => {
     expect(await res.text()).toContain('페이지를 찾을 수 없습니다')
   })
 })
+
+describe('다크 모드', () => {
+  it('상단에 테마 버튼 두 개(어둡게·밝게)가 있고, 기본은 시스템 설정을 따른다', async () => {
+    const html = await (await get('/intro')).text()
+    expect(html).toContain('data-theme-set="dark"')
+    expect(html).toContain('data-theme-set="light"')
+    expect(html).toContain('<html lang="ko">')
+    expect(html).toContain('media="(prefers-color-scheme: dark)"')
+  })
+  it('/theme 는 쿠키를 주고 돌아갈 곳으로 보낸다. 쿠키가 있으면 html 에 data-theme 이 붙는다', async () => {
+    const res = await get('/theme', { method: 'POST', redirect: 'manual', body: new URLSearchParams({ theme: 'dark', next: '/changes' }),
+      headers: { 'content-type': 'application/x-www-form-urlencoded', origin: BASE } })
+    expect(res.status).toBe(302)
+    expect(res.headers.get('location')).toBe('/changes')
+    expect(res.headers.get('set-cookie')).toContain('pl_theme=dark')
+    expect(await (await get('/intro', { headers: { cookie: 'pl_theme=dark' } })).text()).toContain('<html lang="ko" data-theme="dark">')
+    expect(await (await get('/intro', { headers: { cookie: 'pl_theme=light' } })).text()).toContain('data-theme="light"')
+    expect(await (await get('/intro', { headers: { cookie: 'pl_theme=weird' } })).text()).toContain('<html lang="ko">')
+  })
+  it('다른 값이면 쿠키를 지워 시스템 설정으로 돌아간다', async () => {
+    const res = await get('/theme', { method: 'POST', redirect: 'manual', body: new URLSearchParams({ theme: 'auto' }),
+      headers: { 'content-type': 'application/x-www-form-urlencoded', origin: BASE, cookie: 'pl_theme=dark' } })
+    expect(res.headers.get('set-cookie')).toMatch(/pl_theme=;|max-age=0/i)
+  })
+})

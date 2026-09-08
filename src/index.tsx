@@ -11,7 +11,7 @@ import { rankFeatured, matchDocuments } from './rank'
 import { withDb, dbOf } from './sql'
 import { SESSION_COOKIE, OAUTH_COOKIE, SESSION_DAYS, userFromToken, createSession, destroySession, joinWithEmail, loginWithEmail,
   googleEnabled, googleAuthUrl, googleExchange, userFromGoogle, randomToken, safeNext } from './auth'
-import { Layout, Home, IntroPage, SearchPage, ChangesPage, DocumentPage, VersionPage, ChangePage, BotPage, NotFoundPage, AdminPage, JoinPage, LoginPage } from './views'
+import { Layout, Home, IntroPage, SearchPage, ChangesPage, DocumentPage, VersionPage, ChangePage, BotPage, NotFoundPage, AdminPage, JoinPage, LoginPage, type Theme } from './views'
 
 type App = { Bindings: Env; Variables: { user: UserRow | null } }
 const app = new Hono<App>()
@@ -21,9 +21,14 @@ app.use('*', (c, next) => withDb(c.env, () => next()))
 // 세션 쿠키 → 회원. 없거나 만료됐으면 null. 모든 화면이 c.get('user') 로 본다.
 app.use('*', async (c, next) => { c.set('user', await userFromToken(c.env, getCookie(c, SESSION_COOKIE))); await next() })
 
-/** 공통 옷. 회원 여부와 Google 로그인 설정 여부를 상단에 넘긴다. */
+/** 테마 쿠키. dark·light 만 뜻이 있고, 없으면 시스템 설정을 따른다. JS 가 없어도 /theme 폼으로 바뀐다. */
+export const THEME_COOKIE = 'pl_theme'
+const themeOf = (c: Context<App>): Theme | undefined => { const t = getCookie(c, THEME_COOKIE); return t === 'dark' || t === 'light' ? t : undefined }
+const here = (c: Context<App>) => { const u = new URL(c.req.url); return u.pathname + u.search }
+
+/** 공통 옷. 회원 여부·테마·현재 위치를 상단에 넘긴다. */
 const page = (c: Context<App>, title: string, body: unknown, opts: { feed?: string; path?: string; status?: 200 | 404 } = {}) =>
-  c.html(<Layout title={title} siteUrl={c.env.SITE_URL} feed={opts.feed} path={opts.path} user={c.get('user')}>{body as any}</Layout>, opts.status ?? 200)
+  c.html(<Layout title={title} siteUrl={c.env.SITE_URL} feed={opts.feed} path={opts.path} user={c.get('user')} theme={themeOf(c)} here={here(c)}>{body as any}</Layout>, opts.status ?? 200)
 
 /** 스플래시를 한 번 본 방문자에게 다시 보이지 않게 하는 쿠키. 값 하나뿐이고 누구인지 식별하지 않는다. */
 export const INTRO_COOKIE = 'pl_intro'
@@ -51,6 +56,16 @@ app.get('/', async (c) => {
 })
 
 app.get('/intro', (c) => page(c, '소개', <IntroPage />, { path: '/intro' }))
+
+// 테마 고정. dark·light 는 쿠키로 남기고, 그 밖의 값은 쿠키를 지워 시스템 설정으로 돌아간다.
+app.post('/theme', async (c) => {
+  if (!sameOrigin(c)) return c.text('forbidden', 403)
+  const f = await c.req.parseBody()
+  const theme = str(f.theme)
+  if (theme === 'dark' || theme === 'light') setCookie(c, THEME_COOKIE, theme, { path: '/', maxAge: 60 * 60 * 24 * 365, sameSite: 'Lax' })
+  else deleteCookie(c, THEME_COOKIE, { path: '/' })
+  return c.redirect(safeNext(str(f.next)), 302)
+})
 
 // 스플래시의 "시작하기". JS 가 없어도 여기로 와서 쿠키를 받고 홈으로 돌아간다.
 app.get('/start', (c) => {
@@ -212,7 +227,7 @@ admin.use('*', async (c, next) => {
 admin.get('/', async (c) => {
   await syncDocuments(c.env)
   const [docs, counts, users] = await Promise.all([listDocuments(c.env), versionCounts(c.env), countUsers(c.env)])
-  return c.html(<Layout title="관리" siteUrl={c.env.SITE_URL}><AdminPage docs={docs} counts={counts} users={users} /></Layout>)
+  return c.html(<Layout title="관리" siteUrl={c.env.SITE_URL} theme={themeOf(c as unknown as Context<App>)} here="/admin"><AdminPage docs={docs} counts={counts} users={users} /></Layout>)
 })
 admin.post('/backfill/:id', async (c) => {
   await syncDocuments(c.env)
