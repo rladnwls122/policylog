@@ -174,14 +174,14 @@ Postgres 경로(마이그레이션 도구 → `src/db.ts` 전 함수 → Hono �
 
 ```bash
 npx wrangler login
-npx wrangler hyperdrive create policylog --connection-string="$DATABASE_URL"   # 출력된 id 를 wrangler.jsonc 의 hyperdrive.id 에 넣는다
-npx wrangler r2 bucket create policylog-raw
+npx wrangler d1 create policylog                  # 출력된 id 를 wrangler.jsonc 의 d1_databases[0].database_id 에 넣는다
+npx wrangler d1 migrations apply policylog --remote
+npx wrangler r2 bucket create policylog-raw       # 대시보드에서 R2 를 먼저 켜야 한다 (code 10042)
 npx wrangler secret put ADMIN_PASSWORD
-DATABASE_URL=... npm run db:migrate       # Postgres 스키마
 npm run deploy
 ```
 
-Hyperdrive 의 `sslmode=require` 는 CA 를 검증하지 않는다. 검증하려면 `wrangler cert upload ca-cert` 로 CA 를 올리고 `sslmode=verify-full` 로 만든다.
+운영 저장소는 D1 이다. Postgres 로 가려면 `wrangler.jsonc` 의 `d1_databases` 를 `hyperdrive` 바인딩으로 바꾸고(`npx wrangler hyperdrive create policylog --connection-string="$DATABASE_URL"`), `DATABASE_URL=... npm run db:migrate` 로 스키마를 넣는다. Hyperdrive 의 `sslmode=require` 는 CA 를 검증하지 않는다. 검증하려면 `wrangler cert upload ca-cert` 로 CA 를 올리고 `sslmode=verify-full` 로 만든다.
 
 Browser Rendering(§85)은 유료 Workers 플랜에서만 붙는다. 무료 플랜이면 `wrangler.jsonc` 의 `browser` 바인딩을 지워도 된다 — 렌더링 필요 문서가 `수집 준비 중` 으로 남을 뿐 나머지는 그대로 돈다.
 
@@ -216,11 +216,12 @@ tools/
 
 - **스플래시** — 첫 방문(비회원)이면 홈 위에 소개 화면이 덮인다: 목적, 무엇을 하는지, 어떻게 쓰는지, 지키는 원칙. 표제가 차례로 떠오르고, 뒤에서 구체가 떠다니며, 예시 조문에 지움·넣음 표시가 반복해서 쓸려 지나간다. "시작하기" 를 누르면 `pl_intro` 쿠키(값 하나, 식별자 아님) 를 남기고 다시 보이지 않는다. 서버가 쿠키를 보고 그리므로 깜빡임이 없고, JS 가 없으면 `/start` 로 가서 같은 일을 한다. `/intro` 에서 언제든 다시 볼 수 있다.
 - **홈 상단** — 검색창과 아카이브 현황, 그리고 **이번 주 조회 상위 기업** 세 장. 카드에는 그 문서의 가장 최근 변경 중 가장 무거운 조문의 redline 이 그대로 들어 있다. 순위는 최근 7일 조회수, 같으면 최근 변경, 그다음 보존 버전 수다 (`src/rank.ts`). 한 기업은 한 장이고 수집 중인 문서만 후보다.
-- **홈 하단** — 나머지 문서 전부를 그리드 카드로. 수집 중 → 준비 중 → 못 가져옴 순이고, 같은 상태 안에서는 최근 변경 순. 검색창에 낱말을 넣으면 카드가 즉시 걸러지고, 상태 칩으로도 거른다. JS 가 없으면 같은 규칙으로 `/search` 가 서버에서 거른다.
+- **홈 하단** — 나머지 문서 전부를 그리드 카드로. 수집 중 → 준비 중 → 못 가져옴 순이고, 같은 상태 안에서는 최근 변경 순. 검색창에 낱말을 넣으면 카드가 즉시 걸러지고, 상태 칩으로도 거른다. 정렬 칩(최근 변경순·중요도순·이름순)은 카드의 `data-d`·`data-imp`·`data-n` 으로 그 자리에서 다시 붙인다 — JS 전용이고, 없으면 서버 순서 그대로다. JS 가 없으면 같은 규칙으로 `/search` 가 서버에서 거른다.
 - **조회 집계** — 문서·버전·변경 화면을 열면 `document_views` 의 (문서, 날짜) 정수 하나가 오른다. 누가 봤는지는 남기지 않는다. 상위 세 장을 고르는 데만 쓴다.
 - **회원 제한** — 비회원은 홈과 검색에서 카드를 여섯 장까지만 본다 (`PREVIEW_CARDS`, `src/rank.ts`). 상위 세 장은 누구에게나 보이고, 문서·버전·변경 화면과 API 는 그대로 공개다 — 제한은 가입을 이끄는 장치이지 보안 경계가 아니다. 감춘 카드 대신 서는 안내에는 못 가져오는 문서 수도 그대로 적힌다 (§2.7).
 - **서체** — 본문·UI 는 Pretendard(가변, jsDelivr 동적 서브셋), 표제는 Noto Serif KR, 날짜·숫자·라벨은 JetBrains Mono. 약관과 시행일을 다루는 기록물이라 표제에 명조의 무게를 주고, 본문은 한국 제품 UI 의 표준 서체로 읽기 쉽게 한다. 셋 다 unicode-range 로 쪼개져 화면 하나가 받는 양은 수십 KB 이고, 시스템 서체(Malgun Gothic)로 떨어지는 일이 없다.
 - **디자인** — 뉴모피즘. 표면과 바탕이 같은 색이고 깊이는 두 방향의 그림자로만 낸다. 색 사건은 redline(지움·넣음)과 accent(검색 포커스·주요 버튼·순위) 둘뿐이다. 화면 이동은 문서 간 View Transition, 카드는 순서대로 떠오르고 올리면 뜨고 누르면 가라앉는다. `prefers-reduced-motion` 이면 전부 끈다.
+- **시행 전 인장** — 시행일이 한국 날짜 기준 내일 이후인 변경은 인장이 `D-n 시행` 으로 바뀌고 accent 색을 받는다 (`daysUntil`, `src/views.tsx`). 시행일 당일부터는 보통 인장이다.
 - **카드** — 서비스 로고(`LOGOS`, `src/documents.ts` — 각 홈페이지의 favicon 을 실측한 주소. 방문자 브라우저가 referrer 없이 직접 받고, 없는 서비스는 첫 글자)와 발치의 **마지막 확인 시각**(`last_success_at`, "3시간 전 확인") 이 붙는다. robots 판정 문구("robots 비허용, 수집 중")는 설정에서 "수집 상태 자세히" 를 켠 사람에게만 카드에 보인다 — 두 문구를 다 그리고 `<html data-detail>` 을 보는 CSS 가 고른다. 문서 페이지와 API 에는 늘 그대로 나간다 (§2.7).
 - **설정** — 상단 오른쪽 톱니. `<details>` 라 JS 없이 열리고, 안의 줄은 전부 POST 폼이다. 화면(밝게·어둡게·시스템, `/theme`), 수집 상태 자세히(`pl_detail` 쿠키, `/settings`), 변경 알림(회원 행의 `notify`, `/settings`; 비회원은 로그인으로).
 - **다크 모드** — 기본은 시스템 설정을 따르고, 설정에서 고정한다. 선택은 `pl_theme` 쿠키(dark·light)에 남고 서버가 `<html data-theme>` 으로 그리므로 새로고침해도 깜빡이지 않는다. 다크 토큰은 한 벌이고 "시스템이 어둡고 밝게 고정하지 않음" 과 "어둡게 고정함" 두 선택자가 같은 문자열을 받는다 (`src/views.tsx` 의 `DARK`). JS 가 없으면 버튼이 `/theme` 폼으로 동작하고, 있으면 그 자리에서 0.4초 동안 색이 넘어간다. 브라우저 상단 색(`theme-color`)도 함께 바뀐다.
@@ -260,6 +261,13 @@ tools/
 
 ## 다음
 
+- **배포 마무리 (2026-09-10)** — 2026-09-09 에 Cloudflare 로그인, D1 `policylog` 생성(id 는 `wrangler.jsonc`), 마이그레이션 0001~0006 원격 적용까지 끝냈다. 운영 저장소는 Hyperdrive 대신 D1 이다. 남은 순서:
+  1. 대시보드에서 R2 켜기 — `wrangler r2 bucket create` 가 `Please enable R2 through the Cloudflare Dashboard. [code: 10042]` 로 막혔다. https://dash.cloudflare.com/3210770595fe2c51739c7e12c5a6680f/r2 (결제 카드 등록, 무료 한도 10GB).
+  2. `npx wrangler r2 bucket create policylog-raw`
+  3. `npx wrangler secret put ADMIN_PASSWORD`
+  4. `npm run deploy` — 무료 플랜이면 `browser` 바인딩이 거절된다. 그때 `wrangler.jsonc` 에서 `browser` 를 뺀다.
+  5. 배포된 호스트로 `SITE_URL`, `CONTACT_EMAIL`, `USER_AGENT` 를 바꾸고, Google OAuth 리디렉션 URI `https://<호스트>/auth/google/callback` 등록 뒤 `GOOGLE_CLIENT_ID`(vars)·`GOOGLE_CLIENT_SECRET`(secret) 을 넣는다.
+  wrangler 는 Node 22+ 가 필요하다. `nvm use 24.12.0`.
 - 렌더링 셀렉터 실측 — 위 33건. 바인딩을 켜고 `--render` 서베이를 돌린다.
 - 이메일 알림(§78 M2) — 계정 없이 주소만으로 구독. 지금은 RSS 만 있다.
 - 공개 요청(§83) — 403 으로 막힌 19건에 대해 User-Agent 단위 허용 요청. robots 쪽은 §24.4 로 대체됐다.

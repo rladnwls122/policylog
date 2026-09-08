@@ -6,7 +6,7 @@ import type { DocumentRow, ChangeListRow, ChangeRow, UserRow } from './db'
 import type { ChangeSection, TableRowChange } from './diff'
 import type { PublicSection } from './public'
 import { excerpt, focusOnChange } from './public'
-import { type Signals, orderForGrid, searchKey, PREVIEW_CARDS } from './rank'
+import { type Signals, orderForGrid, searchKey, changeDate, PREVIEW_CARDS } from './rank'
 import { MIN_PASSWORD } from './auth'
 import { LOGOS } from './documents'
 
@@ -182,6 +182,8 @@ html.js .js-only{display:flex}
   font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums;letter-spacing:.01em;line-height:1.1;white-space:nowrap}
 .seal em{font-style:normal;font-size:10px;letter-spacing:.08em;color:var(--ink-2)}
 .seal.void{color:var(--ink-2)}
+.seal.soon{color:var(--accent);box-shadow:var(--sink-sm),0 0 0 1px var(--accent-soft)}
+.seal.soon em{color:var(--accent);font-weight:600}
 
 /* 섹션 머리 */
 .sec{margin:64px 0 22px;display:flex;align-items:end;justify-content:space-between;gap:12px 24px;flex-wrap:wrap}
@@ -477,6 +479,16 @@ if(q&&grid){
   if(q.form)q.form.addEventListener('submit',function(e){e.preventDefault();apply();(feat&&!feat.hidden?feat:grid).scrollIntoView({behavior:'smooth',block:'start'})});
   chips.forEach(function(b){b.addEventListener('click',function(){f=b.getAttribute('data-f');chips.forEach(function(x){var on=x===b;x.classList.toggle('on',on);x.setAttribute('aria-pressed',on?'true':'false')});apply()})});
   if(q.value)apply();
+  // 정렬. 서버가 준 순서(최근 변경순)를 기억해 두고, 칩을 누르면 그리드 안의 카드만 다시 붙인다. 가입 안내 카드는 늘 마지막.
+  var gcards=[].slice.call(grid.querySelectorAll('[data-q]')),gate=grid.querySelector('.gate'),sorts=[].slice.call(d.querySelectorAll('[data-sort]'));
+  var attr=function(c,k){return c.getAttribute(k)||''};
+  sorts.forEach(function(b){b.addEventListener('click',function(){
+    var k=b.getAttribute('data-sort'),arr=gcards.slice();
+    if(k==='imp')arr.sort(function(a,c){return (+attr(c,'data-imp'))-(+attr(a,'data-imp'))||gcards.indexOf(a)-gcards.indexOf(c)});
+    else if(k==='name')arr.sort(function(a,c){return attr(a,'data-n').localeCompare(attr(c,'data-n'),'ko')});
+    arr.forEach(function(c,i){c.style.setProperty('--i',i);grid.appendChild(c)});if(gate)grid.appendChild(gate);
+    sorts.forEach(function(x){var on=x===b;x.classList.toggle('on',on);x.setAttribute('aria-pressed',on?'true':'false')});
+  })});
 }
 })();
 `
@@ -629,10 +641,20 @@ export const Importance: FC<{ n: number }> = ({ n }) => (
  * 시행일 도장 (§76). 날짜는 이 아카이브에서 법적으로 작동하는 유일한 사실이라
  * 라벨이 아니라 인장으로 찍는다. 시행일이 없으면 감지일을 찍되 톤을 죽인다.
  */
-export const Seal: FC<{ effectiveAt: string | null; observedAt?: string }> = ({ effectiveAt, observedAt }) =>
-  effectiveAt
-    ? <span class="seal"><em>시행</em>{effectiveAt.replaceAll('-', '.')}</span>
+export const Seal: FC<{ effectiveAt: string | null; observedAt?: string }> = ({ effectiveAt, observedAt }) => {
+  const dday = effectiveAt ? daysUntil(effectiveAt) : 0
+  return effectiveAt
+    ? dday > 0
+      ? <span class="seal soon"><em>D-{dday} 시행</em>{effectiveAt.replaceAll('-', '.')}</span>
+      : <span class="seal"><em>시행</em>{effectiveAt.replaceAll('-', '.')}</span>
     : <span class="seal void"><em>감지</em>{(observedAt ?? '').slice(0, 10).replaceAll('-', '.')}</span>
+}
+
+/** 한국 날짜 기준으로 시행일까지 남은 날. 오늘이거나 지났으면 0 이하. 아직 시행 전인 변경은 인장이 D-n 으로 바뀐다. */
+export function daysUntil(effectiveAt: string, at = Date.now()): number {
+  const today = new Date(at + 9 * 3600_000).toISOString().slice(0, 10)
+  return Math.round((Date.parse(effectiveAt) - Date.parse(today)) / 86_400_000)
+}
 
 export const CAT: Record<string, string> = {
   AI_DATA_USAGE: 'AI·데이터 활용', DATA_SHARING: '제3자 제공', OVERSEAS_TRANSFER: '국외 이전', PROCESSOR_DELEGATION: '처리 위탁', PRICE: '요금',
@@ -756,7 +778,7 @@ const DocCard: FC<{ d: DocumentRow; s: Signals; i: number }> = ({ d, s, i }) => 
   const n = s.counts.get(d.id)
   const active = d.status === 'ACTIVE'
   return (
-    <article class={`card doc-card in ${statusKey(d)}`} style={`--i:${i}`} data-q={searchKey(d)} data-s={statusKey(d)}>
+    <article class={`card doc-card in ${statusKey(d)}`} style={`--i:${i}`} data-q={searchKey(d)} data-s={statusKey(d)} data-d={changeDate(c)} data-imp={c?.importance ?? -1} data-n={d.service_name}>
       <div class="card-top"><span class="kind">{TYPE_LABEL[d.type] ?? d.type}</span><span class="ctl"><Badge d={d} /><WatchButton d={d} s={s} /></span></div>
       <h3 class="who"><Logo d={d} />{active
         ? <a class="cover" href={`/policies/${d.id}`}>{d.service_name}</a>
@@ -922,6 +944,11 @@ export const Home: FC<{ docs: DocumentRow[]; signals: Signals; featured: Documen
               <button type="button" class="chip" data-f="pending" aria-pressed="false">준비 중</button>
               <button type="button" class="chip" data-f="blocked" aria-pressed="false">못 가져옴</button>
               <span class="count"><b id="count">{featured.length + shown.length}</b>건</span>
+            </div>
+            <div class="chips js-only" role="group" aria-label="정렬">
+              <button type="button" class="chip on" data-sort="recent" aria-pressed="true">최근 변경순</button>
+              <button type="button" class="chip" data-sort="imp" aria-pressed="false">중요도순</button>
+              <button type="button" class="chip" data-sort="name" aria-pressed="false">이름순</button>
             </div>
             <a class="lnk" href="/changes">변경 기록 전체</a>
           </div>

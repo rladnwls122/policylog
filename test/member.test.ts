@@ -3,7 +3,7 @@ import { env, SELF } from 'cloudflare:test'
 import { describe, it, expect, beforeAll } from 'vitest'
 import { syncDocuments, insertVersion, findUserByEmail, listChangesForDocument, notifyRecipients, updateDocument, type Env } from '../src/db'
 import { LOGOS } from '../src/documents'
-import { ago } from '../src/views'
+import { ago, daysUntil } from '../src/views'
 import { rebuildChanges } from '../src/acquire'
 import { ATTEMPT_LIMIT, TOO_MANY } from '../src/auth'
 
@@ -214,5 +214,24 @@ describe('검색 엔진', () => {
   it('API 와 피드는 캐시 헤더를 단다', async () => {
     expect((await get('/api/v1/services')).headers.get('cache-control')).toContain('max-age=300')
     expect((await get(`/policies/${DOC}/feed.xml`)).headers.get('cache-control')).toContain('public')
+  })
+})
+
+// 맨 뒤: 앞의 변경 수를 세는 테스트가 있어, 시행 전 버전은 마지막에 넣는다.
+describe('시행 전 변경', () => {
+  it('시행 전인 변경은 D-n 인장, 정렬 칩과 정렬 속성이 있다', async () => {
+    const at = Date.parse('2026-09-08T00:00:00Z')
+    expect(daysUntil('2026-09-15', at)).toBe(7)
+    expect(daysUntil('2026-09-08', at)).toBe(0)
+    expect(daysUntil('2026-09-01', at)).toBe(-7)
+    expect(daysUntil('2026-09-09', Date.parse('2026-09-08T14:59:00Z'))).toBe(1)   // 한국은 아직 8일 밤
+    expect(daysUntil('2026-09-09', Date.parse('2026-09-08T15:01:00Z'))).toBe(0)   // 한국은 9일 0시
+    const soon = new Date(Date.now() + 9 * 3600_000 + 7 * 86_400_000).toISOString().slice(0, 10)
+    await insertVersion(E, v('m4', T3 + '\n\n제5조 (보안)\n비밀번호는 암호화합니다.', soon, new Date().toISOString()))
+    await rebuildChanges(E, DOC, null)
+    const home = await (await get('/')).text()
+    expect(home).toContain('<span class="seal soon"><em>D-7 시행</em>')
+    expect(home).toContain('data-sort="imp"')
+    expect(home).toMatch(/data-d="[^"]*" data-imp="-?\d+" data-n="[^"]+"/)
   })
 })
