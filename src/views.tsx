@@ -8,6 +8,7 @@ import type { PublicSection } from './public'
 import { excerpt, focusOnChange } from './public'
 import { type Signals, orderForGrid, searchKey, PREVIEW_CARDS } from './rank'
 import { MIN_PASSWORD } from './auth'
+import { LOGOS } from './documents'
 
 // 디자인 체계 — 뉴모피즘(soft UI).
 //
@@ -203,6 +204,10 @@ html.js .js-only{display:flex}
 .card .foot{margin-top:auto;display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 14px;align-items:center;font-size:13px;color:var(--ink-2);padding-top:4px}
 .card .chg-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--ink-2)}
 .card .views{font-family:var(--mono);font-size:11px;color:var(--accent)}
+.card .who{display:flex;align-items:center;gap:10px}
+.logo{width:28px;height:28px;border-radius:8px;flex:none;box-shadow:var(--sink-sm);object-fit:contain;background:var(--well);padding:3px}
+i.logo{display:grid;place-items:center;font:600 13px var(--mono);font-style:normal;color:var(--accent);padding:0}
+.card .foot time{color:var(--ink-3)}
 .card .clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:13px;color:var(--ink-2);margin:0}
 .featured{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:26px 24px;padding-top:12px}
 @media(max-width:940px){.featured{grid-template-columns:1fr}}
@@ -341,16 +346,26 @@ footer .brand{font-size:13px}
 .auth-form .btn{margin-top:4px}
 .err{border-radius:var(--r-sm);padding:12px 16px;color:var(--del-ink);background:var(--del);font-size:14px;margin:0}
 
-/* 테마 토글. 밝을 때는 달(어둡게), 어두울 때는 해(밝게) 폼만 보인다 — JS 없이도 맞는 쪽이 눌린다. */
-.theme{display:inline-flex;margin-left:4px}
-.theme form{display:none;margin:0}
-.theme form.to-dark{display:inline-flex}
-@media(prefers-color-scheme:dark){
-  :root:not([data-theme=light]) .theme form.to-dark{display:none}
-  :root:not([data-theme=light]) .theme form.to-light{display:inline-flex}
-}
-:root[data-theme=dark] .theme form.to-dark{display:none}
-:root[data-theme=dark] .theme form.to-light{display:inline-flex}
+/* 설정. <details> 라 JS 없이 열리고 닫힌다. 안의 줄 하나가 폼 하나 — 토글은 hidden 값 하나 든 submit 이다. */
+.settings{position:relative;margin-left:4px}
+.settings summary{list-style:none;cursor:pointer}
+.settings summary::-webkit-details-marker{display:none}
+.settings[open] summary .iconbtn{color:var(--accent);box-shadow:var(--sink-sm)}
+.settings .pane{position:absolute;right:0;top:calc(100% + 10px);z-index:20;width:min(300px,calc(100vw - 32px));padding:14px 16px;border-radius:var(--r);background:var(--bg);box-shadow:var(--raise-lg);display:grid;gap:10px}
+.settings .row{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;color:var(--ink);margin:0}
+.settings .row small{display:block;font-size:11px;color:var(--ink-3);margin-top:2px}
+.settings .seg{display:inline-flex;gap:4px}
+.settings .seg form{display:contents}
+.settings .seg button{font:500 12px/1 var(--body);color:var(--ink-2);background:var(--bg);border:0;border-radius:var(--pill);padding:7px 10px;cursor:pointer;box-shadow:var(--raise-sm)}
+.settings .seg button[aria-pressed=true]{color:var(--accent);box-shadow:var(--sink-sm)}
+.sw{width:40px;height:22px;border-radius:11px;border:0;padding:0;position:relative;cursor:pointer;background:var(--bg);box-shadow:var(--sink-sm);flex:none}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:var(--ink-3);transition:transform .2s var(--ease),background .2s}
+.sw[aria-checked=true]::after{transform:translateX(18px);background:var(--accent)}
+.settings a.sw{display:block}
+/* robots 뱃지는 설정에서 켠 사람에게만 보인다. 두 문구를 다 그리고 CSS 로 고른다 — 카드마다 값을 넘기지 않는다. */
+.tag.detail{display:none}
+:root[data-detail] .tag.detail{display:inline-flex}
+:root[data-detail] .tag.plain{display:none}
 .iconbtn{width:36px;height:36px;border-radius:50%;border:0;background:var(--bg);box-shadow:var(--raise-sm);color:var(--ink-2);
   display:grid;place-items:center;cursor:pointer;padding:0;transition:box-shadow .25s var(--ease),color .25s,transform .25s var(--ease)}
 .iconbtn svg{width:17px;height:17px}
@@ -478,28 +493,65 @@ const Account: FC<{ user?: UserRow | null }> = ({ user }) => user
   : <span class="me"><a href="/login">로그인</a><a class="join" href="/join">회원가입</a></span>
 
 export type Theme = 'light' | 'dark'
+
+/** 상대 시각. 카드에서 "3시간 전 확인" 으로 쓴다. 분 아래는 뭉뚱그린다. */
+export function ago(iso: string, at = Date.now()): string {
+  const m = Math.max(0, Math.floor((at - Date.parse(iso)) / 60_000))
+  if (m < 1) return '방금'
+  if (m < 60) return `${m}분 전`
+  if (m < 48 * 60) return `${Math.floor(m / 60)}시간 전`
+  return `${Math.floor(m / 1440)}일 전`
+}
+
+/** 서비스 로고. 실측한 favicon 을 서비스 쪽에서 직접 받되 referrer 는 안 보낸다. 없으면 첫 글자. */
+const Logo: FC<{ d: Pick<DocumentRow, 'service' | 'service_name'> }> = ({ d }) => LOGOS[d.service]
+  ? <img class="logo" src={LOGOS[d.service]} alt="" width={28} height={28} loading="lazy" referrerpolicy="no-referrer" />
+  : <i class="logo" aria-hidden="true">{d.service_name.slice(0, 1)}</i>
 const DEFAULT_DESCRIPTION = '한국 서비스의 이용약관과 개인정보 처리방침을 매일 확인해 조문 단위로 변경을 기록하는 공개 아카이브'
 
-const ThemeToggle: FC<{ next: string }> = ({ next }) => (
-  <span class="theme">
-    <form method="post" action="/theme" class="to-dark">
-      <input type="hidden" name="theme" value="dark" /><input type="hidden" name="next" value={next} />
-      <button class="iconbtn" type="submit" aria-label="다크 모드로 바꾸기" title="다크 모드" data-theme-set="dark">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" /></svg>
-      </button>
-    </form>
-    <form method="post" action="/theme" class="to-light">
-      <input type="hidden" name="theme" value="light" /><input type="hidden" name="next" value={next} />
-      <button class="iconbtn" type="submit" aria-label="라이트 모드로 바꾸기" title="라이트 모드" data-theme-set="light">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>
-      </button>
-    </form>
-  </span>
+/** 켜고 끄는 줄 하나. 폼 하나에 hidden 값 하나 — JS 없이 동작한다. */
+const Switch: FC<{ action: string; name: string; on: boolean; next: string; label: string }> = ({ action, name, on, next, label }) => (
+  <form method="post" action={action}>
+    <input type="hidden" name={name} value={on ? '0' : '1'} /><input type="hidden" name="next" value={next} />
+    <button class="sw" type="submit" role="switch" aria-checked={on ? 'true' : 'false'} aria-label={label} />
+  </form>
+)
+
+/**
+ * 설정. 테마 · 수집 상태 표시 · 알림. 전부 쿠키나 회원 행에 남고 폼으로 바뀌므로 JS 가 없어도 된다.
+ * 테마 버튼의 data-theme-set 은 JS 가 있을 때 새로고침 없이 바꾸는 손잡이다.
+ */
+const Settings: FC<{ next: string; theme?: Theme; detail: boolean; user?: UserRow | null }> = ({ next, theme, detail, user }) => (
+  <details class="settings">
+    <summary><span class="iconbtn" role="button" aria-label="설정" title="설정">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></svg>
+    </span></summary>
+    <div class="pane">
+      <div class="row"><span>화면</span>
+        <span class="seg">
+          {([['light', '밝게'], ['dark', '어둡게'], ['auto', '시스템']] as const).map(([v, label]) => (
+            <form method="post" action="/theme">
+              <input type="hidden" name="theme" value={v} /><input type="hidden" name="next" value={next} />
+              <button type="submit" aria-pressed={(theme ?? 'auto') === v ? 'true' : 'false'} data-theme-set={v === 'auto' ? undefined : v}>{label}</button>
+            </form>
+          ))}
+        </span>
+      </div>
+      <div class="row"><span>수집 상태 자세히<small>robots.txt 판정 같은 수집 사정을 카드에 적습니다</small></span>
+        <Switch action="/settings" name="detail" on={detail} next={next} label="수집 상태 자세히 보기" />
+      </div>
+      <div class="row"><span>변경 알림<small>{user ? `관심 약관이 바뀌면 ${user.email} 로 보냅니다` : '로그인하면 관심 약관의 변경을 메일로 받습니다'}</small></span>
+        {user
+          ? <Switch action="/settings" name="notify" on={user.notify === 1} next={next} label="변경 알림 메일" />
+          : <a class="sw" href={`/login?next=${encodeURIComponent(next)}`} role="switch" aria-checked="false" aria-label="로그인하고 알림 켜기" />}
+      </div>
+    </div>
+  </details>
 )
 
 /** theme 이 없으면 시스템 설정을 따른다. here 는 테마를 바꾼 뒤 돌아올 곳. */
-export const Layout: FC<PropsWithChildren<{ title: string; siteUrl: string; feed?: string; path?: string; description?: string; user?: UserRow | null; theme?: Theme; here?: string; noindex?: boolean }>> = ({ title, siteUrl, feed, path, description, user, theme, here, noindex, children }) => (
-  <html lang="ko" data-theme={theme}>
+export const Layout: FC<PropsWithChildren<{ title: string; siteUrl: string; feed?: string; path?: string; description?: string; user?: UserRow | null; theme?: Theme; detail?: boolean; here?: string; noindex?: boolean }>> = ({ title, siteUrl, feed, path, description, user, theme, detail, here, noindex, children }) => (
+  <html lang="ko" data-theme={theme} data-detail={detail ? '' : undefined}>
     <head>
       <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>{title} · POLICYLOG</title>
@@ -533,7 +585,7 @@ export const Layout: FC<PropsWithChildren<{ title: string; siteUrl: string; feed
           <nav aria-label="주요">
             {NAV.map(([href, label]) => <a href={href} aria-current={path === href ? 'page' : undefined}>{label}</a>)}
             <Account user={user} />
-            <ThemeToggle next={here ?? path ?? '/'} />
+            <Settings next={here ?? path ?? '/'} theme={theme} detail={!!detail} user={user} />
           </nav>
         </div>
       </header>
@@ -552,9 +604,15 @@ const BLOCKER_LABEL: Record<string, string> = { ROBOTS: 'robots.txt', WAF: '봇 
 const CHANGE_LABEL: Record<string, string> = { ADDED: '신설', REMOVED: '삭제', MODIFIED: '수정' }
 const TYPE_LABEL: Record<string, string> = { TERMS: '이용약관', PRIVACY: '개인정보 처리방침' }
 
-export const Badge: FC<{ d: Pick<DocumentRow, 'status' | 'blocker_type' | 'robots_verdict'> }> = ({ d }) =>
-  // robots 비허용인데 수집 중이면 그렇게 적는다. "수집 중" 으로 뭉뚱그리지 않는다 (§2.7).
-  d.status === 'ACTIVE' && d.robots_verdict === 'DISALLOWED' ? <span class="tag warn">robots 비허용, 수집 중</span>
+/**
+ * robots 비허용인데 수집 중이면 그렇게 적는다. "수집 중" 으로 뭉뚱그리지 않는다 (§2.7).
+ * 카드에서는 그 문구가 설정의 "수집 상태 자세히" 를 켠 사람에게만 보인다 — 두 문구를 다 그리고 CSS 가 고른다.
+ * 문서 페이지처럼 늘 보여야 하는 곳은 detail 을 준다.
+ */
+export const Badge: FC<{ d: Pick<DocumentRow, 'status' | 'blocker_type' | 'robots_verdict'>; detail?: boolean }> = ({ d, detail }) =>
+  d.status === 'ACTIVE' && d.robots_verdict === 'DISALLOWED'
+    ? detail ? <span class="tag warn">robots 비허용, 수집 중</span>
+    : <><span class="tag warn detail">robots 비허용, 수집 중</span><span class="tag ok plain">매일 확인</span></>
   : d.status === 'ACTIVE' ? <span class="tag ok">매일 확인</span>
   : d.status === 'PENDING_RENDER' ? <span class="tag warn">수집 준비 중</span>
   : <span class="tag stop">못 가져옴 · {BLOCKER_LABEL[d.blocker_type] ?? d.blocker_type}</span>
@@ -664,6 +722,9 @@ const WatchButton: FC<{ d: Pick<DocumentRow, 'id'>; s: Pick<Signals, 'watched'>;
   )
 }
 
+/** 마지막으로 본문을 무사히 받아 본 시각. 카드 발치에 "3시간 전 확인" 으로 찍는다. */
+const Checked: FC<{ at: string | null }> = ({ at }) => at ? <> · <time datetime={at} title={at.slice(0, 16).replace('T', ' ')}>{ago(at)} 확인</time></> : null
+
 /** 상단 세 장. 기업 하나에 한 장, 최근 변경의 redline 을 함께 보인다. */
 const FeaturedCard: FC<{ d: DocumentRow; s: Signals; rank: number }> = ({ d, s, rank }) => {
   const c = s.latest.get(d.id)
@@ -673,7 +734,7 @@ const FeaturedCard: FC<{ d: DocumentRow; s: Signals; rank: number }> = ({ d, s, 
     <article class="card feat in" style={`--i:${rank}`} data-q={searchKey(d)} data-s={statusKey(d)}>
       <span class="rank" aria-label={`${rank}위`}>{rank}</span>
       <div class="card-top"><Badge d={d} /><span class="ctl">{v > 0 && <span class="views">이번 주 {v}회 조회</span>}<WatchButton d={d} s={s} /></span></div>
-      <h3 class="who"><a class="cover" href={`/policies/${d.id}`}>{d.service_name}</a></h3>
+      <h3 class="who"><Logo d={d} /><a class="cover" href={`/policies/${d.id}`}>{d.service_name}</a></h3>
       <p class="what">{d.title}</p>
       {c
         ? <>
@@ -682,7 +743,7 @@ const FeaturedCard: FC<{ d: DocumentRow; s: Signals; rank: number }> = ({ d, s, 
           </>
         : <p class="mini muted">아직 기록된 변경이 없습니다. 첫 버전을 보존하고 지켜보는 중입니다.</p>}
       <div class="foot">
-        <span class="num">{n ? `버전 ${n.n}개 · ${n.oldest.slice(0, 4)}년부터` : '첫 수집 대기'}</span>
+        <span class="num">{n ? `버전 ${n.n}개 · ${n.oldest.slice(0, 4)}년부터` : '첫 수집 대기'}<Checked at={d.last_success_at} /></span>
         {c && <a class="lnk" href={`/changes/${c.id}`}>변경 보기</a>}
       </div>
     </article>
@@ -697,7 +758,7 @@ const DocCard: FC<{ d: DocumentRow; s: Signals; i: number }> = ({ d, s, i }) => 
   return (
     <article class={`card doc-card in ${statusKey(d)}`} style={`--i:${i}`} data-q={searchKey(d)} data-s={statusKey(d)}>
       <div class="card-top"><span class="kind">{TYPE_LABEL[d.type] ?? d.type}</span><span class="ctl"><Badge d={d} /><WatchButton d={d} s={s} /></span></div>
-      <h3 class="who">{active
+      <h3 class="who"><Logo d={d} />{active
         ? <a class="cover" href={`/policies/${d.id}`}>{d.service_name}</a>
         : <a class="cover" href={d.canonical_url} rel="noopener nofollow">{d.service_name}</a>}</h3>
       <p class="what">{d.title}</p>
@@ -706,7 +767,7 @@ const DocCard: FC<{ d: DocumentRow; s: Signals; i: number }> = ({ d, s, i }) => 
         : active ? <p class="clamp">기록된 변경 없음 · 매일 지켜보는 중</p>
         : d.public_note ? <p class="clamp">{d.public_note}</p> : null}
       <div class="foot">
-        <span class="num">{n ? `버전 ${n.n}개 · ${n.oldest.slice(0, 4)}년부터` : active ? '첫 수집 대기' : '보존 버전 없음'}</span>
+        <span class="num">{n ? `버전 ${n.n}개 · ${n.oldest.slice(0, 4)}년부터` : active ? '첫 수집 대기' : '보존 버전 없음'}{active && <Checked at={d.last_success_at} />}</span>
         {active
           ? <a class="lnk" href={d.canonical_url} rel="noopener nofollow">공식 문서</a>
           : <a class="lnk" href={d.canonical_url} rel="noopener nofollow">공식 문서로</a>}
@@ -951,7 +1012,7 @@ export const DocumentPage: FC<{ d: DocumentRow; versions: { id: string; effectiv
       <p class="eyebrow">{d.service_name} · {TYPE_LABEL[d.type] ?? d.type}</p>
       <h1>{d.title}</h1>
       <ul class="meta">
-        <li><Badge d={d} /></li>
+        <li><Badge d={d} detail /></li>
         <li><WatchButton d={d} s={ws} big /></li>
         <li><a href={d.canonical_url} rel="noopener nofollow">공식 문서</a></li>
         <li><a href={`/policies/${d.id}/feed.xml`}>RSS 구독</a></li>
@@ -1105,7 +1166,7 @@ export const BotPage: FC<{ ua: string; contact: string; robotsMode: string }> = 
           약관·개인정보 처리방침은 사업자가 공개하도록 정해진 문서이고, 이 아카이브는 그중 변경분만 하루 1회 이하로 확인합니다.
           대부분의 차단은 이 문서들을 겨냥한 것이 아니라 경로 전체나 <code>User-agent: *</code> 에 걸린 포괄 규칙입니다.
         </p>
-        <p>사실대로 적자면: robots.txt 가 비허용인 문서도 수집 중이며, 카탈로그에서 <strong>robots 비허용, 수집 중</strong> 으로 표시됩니다. 숨기지 않습니다.</p>
+        <p>사실대로 적자면: robots.txt 가 비허용인 문서도 수집 중입니다. 문서 페이지에는 <strong>robots 비허용, 수집 중</strong> 으로 늘 적히고, 카드에는 설정의 "수집 상태 자세히" 를 켜면 같은 문구가 보입니다. 판정 자체는 API 에도 그대로 나갑니다.</p>
       </>
     ) : (
       <p>robots.txt 를 매주 다시 확인합니다. 차단으로 바뀌면 즉시 중단하고, 보존한 이력은 유지합니다. robots.txt 자체가 403 이거나 응답이 없으면 차단으로 봅니다.</p>

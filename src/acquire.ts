@@ -6,7 +6,8 @@ import { DOCUMENTS, robotsEnforced, isCollectible, fetchModeOf, type DocumentCon
 import { extract, type TableBlock } from './extract'
 import { normalize, sha256, gate, extractDates, sectionsOf, yyyymmdd, hangulRatio, NORMALIZATION_PROFILE, PARSER_VERSION } from './normalize'
 import { diffSections, diffParagraphs, diffTables, summarize } from './diff'
-import { type Env, type VersionRow, now, uid, getDocument, getVersion, updateDocument, latestVersion, findVersionByHash, insertVersion, insertChange, changeBetween, storedSourceUrls } from './db'
+import { type Env, type VersionRow, now, uid, getDocument, getVersion, updateDocument, latestVersion, findVersionByHash, insertVersion, insertChange, changeBetween, storedSourceUrls, getChange } from './db'
+import { notifyChange } from './notify'
 import { dbOf } from './sql'
 
 export const HISTORY_INTERVAL_MS = 5_000       // §71.4
@@ -281,7 +282,10 @@ export async function poll(env: Env, docId: string) {
     await updateDocument(env, docId, { last_checked_at: now(), last_error: r.created || r.reason === 'UNCHANGED' || r.reason === 'PENDING_CONFIRMATION' ? null : r.reason, ...(r.created || r.reason === 'UNCHANGED' ? { last_success_at: now() } : {}) })
     if (r.created && prev) {
       const to = (await getVersion(env, r.versionId!))!
-      await createChange(env, prev, to, null)
+      const changeId = await createChange(env, prev, to, null)
+      // 알림 실패는 수집 실패가 아니다. 기록은 이미 남았으니 여기서 삼킨다.
+      const c = (await getChange(env, changeId))!
+      await notifyChange(env, c, to.effective_at, to.observed_at).catch((e) => console.error('notify', docId, String(e)))
     }
     return r
   } catch (e) {

@@ -27,6 +27,10 @@ declare namespace Cloudflare {
     GOOGLE_CLIENT_SECRET?: string
     /** 비밀번호 PBKDF2 반복 횟수. 기본 100000. 무료 플랜의 CPU 한도에 걸리면 낮춘다. */
     PASSWORD_ITERATIONS?: string
+    /** 변경 알림 메일 (src/notify.ts). `wrangler secret put RESEND_API_KEY`. 없으면 알림 토글은 저장만 되고 보내지 않는다. */
+    RESEND_API_KEY?: string
+    /** 보내는 주소. Resend 에 인증된 도메인이어야 한다. 없으면 CONTACT_EMAIL. */
+    MAIL_FROM?: string
     TEST_MIGRATIONS: import('@cloudflare/vitest-pool-workers').D1Migration[]
   }
 }

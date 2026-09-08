@@ -4,3 +4,5 @@ ADMIN_PASSWORD=devpassword
 # Google 로그인 (Google Cloud Console → OAuth 클라이언트 → 승인된 리디렉션 URI: http://localhost:8788/auth/google/callback)
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
+RESEND_API_KEY=
+MAIL_FROM=

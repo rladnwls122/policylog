@@ -23,13 +23,15 @@ app.use('*', (c, next) => withDb(c.env, () => next()))
 app.use('*', async (c, next) => { c.set('user', await userFromToken(c.env, getCookie(c, SESSION_COOKIE))); await next() })
 
 /** 테마 쿠키. dark·light 만 뜻이 있고, 없으면 시스템 설정을 따른다. JS 가 없어도 /theme 폼으로 바뀐다. */
-export const THEME_COOKIE = 'pl_theme'
+const THEME_COOKIE = 'pl_theme'
 const themeOf = (c: Context<App>): Theme | undefined => { const t = getCookie(c, THEME_COOKIE); return t === 'dark' || t === 'light' ? t : undefined }
+/** "수집 상태 자세히" 쿠키. 있으면 카드에 robots 판정 문구가 보인다. 회원·비회원 모두 쿠키다 — 화면 취향이지 계정 정보가 아니다. */
+const DETAIL_COOKIE = 'pl_detail'
 const here = (c: Context<App>) => { const u = new URL(c.req.url); return u.pathname + u.search }
 
 /** 공통 옷. 회원 여부·테마·현재 위치를 상단에 넘긴다. */
 const page = (c: Context<App>, title: string, body: unknown, opts: { feed?: string; path?: string; status?: 200 | 404; description?: string; noindex?: boolean } = {}) =>
-  c.html(<Layout title={title} siteUrl={c.env.SITE_URL} feed={opts.feed} path={opts.path} description={opts.description} noindex={opts.noindex} user={c.get('user')} theme={themeOf(c)} here={here(c)}>{body as any}</Layout>, opts.status ?? 200)
+  c.html(<Layout title={title} siteUrl={c.env.SITE_URL} feed={opts.feed} path={opts.path} description={opts.description} noindex={opts.noindex} user={c.get('user')} theme={themeOf(c)} detail={getCookie(c, DETAIL_COOKIE) === '1'} here={here(c)}>{body as any}</Layout>, opts.status ?? 200)
 
 /** 폼을 보낸 화면으로 돌아간다. 같은 출처의 Referer 만 믿고, 없으면 fallback. */
 const back = (c: Context<App>, fallback: string) => {
@@ -53,7 +55,7 @@ function rss(site: string, title: string, link: string, description: string, cha
 }
 
 /** 스플래시를 한 번 본 방문자에게 다시 보이지 않게 하는 쿠키. 값 하나뿐이고 누구인지 식별하지 않는다. */
-export const INTRO_COOKIE = 'pl_intro'
+const INTRO_COOKIE = 'pl_intro'
 
 /** 홈과 검색이 함께 쓰는 신호. 공개 억제된 문서는 여기서 걸러진다. 회원이면 관심 문서 집합이 붙는다. */
 async function catalog(env: Env, user: UserRow | null = null) {
@@ -86,6 +88,17 @@ app.post('/theme', async (c) => {
   const theme = str(f.theme)
   if (theme === 'dark' || theme === 'light') setCookie(c, THEME_COOKIE, theme, { path: '/', maxAge: 60 * 60 * 24 * 365, sameSite: 'Lax' })
   else deleteCookie(c, THEME_COOKIE, { path: '/' })
+  return c.redirect(safeNext(str(f.next)), 302)
+})
+
+// 설정. detail 은 쿠키, notify 는 회원 행. 둘 중 온 것만 바꾼다.
+app.post('/settings', async (c) => {
+  if (!sameOrigin(c)) return c.text('forbidden', 403)
+  const f = await c.req.parseBody()
+  const detail = str(f.detail), notify = str(f.notify), user = c.get('user')
+  if (detail === '1') setCookie(c, DETAIL_COOKIE, '1', { path: '/', maxAge: 60 * 60 * 24 * 365, sameSite: 'Lax' })
+  else if (detail === '0') deleteCookie(c, DETAIL_COOKIE, { path: '/' })
+  if ((notify === '1' || notify === '0') && user) await updateUser(c.env, user.id, { notify: notify === '1' ? 1 : 0 })
   return c.redirect(safeNext(str(f.next)), 302)
 })
 

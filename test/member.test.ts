@@ -1,7 +1,9 @@
 // 관심 약관 · 내 페이지 · 개인 RSS · 로그인 시도 제한 · 변경 거르기 · 이웃 변경 · robots/sitemap/og. 실제 워커에서 실제 D1 로 확인한다.
 import { env, SELF } from 'cloudflare:test'
 import { describe, it, expect, beforeAll } from 'vitest'
-import { syncDocuments, insertVersion, findUserByEmail, listChangesForDocument, type Env } from '../src/db'
+import { syncDocuments, insertVersion, findUserByEmail, listChangesForDocument, notifyRecipients, updateDocument, type Env } from '../src/db'
+import { LOGOS } from '../src/documents'
+import { ago } from '../src/views'
 import { rebuildChanges } from '../src/acquire'
 import { ATTEMPT_LIMIT, TOO_MANY } from '../src/auth'
 
@@ -65,6 +67,39 @@ describe('관심 약관', () => {
     const res = await get('/me', { redirect: 'manual' })
     expect(res.status).toBe(302)
     expect(res.headers.get('location')).toContain('/login?next=')
+  })
+})
+
+describe('설정', () => {
+  it('수집 상태 자세히는 쿠키다. 켜면 html 에 data-detail 이 붙고 robots 문구가 카드에 그려진다', async () => {
+    const res = await form('/settings', { detail: '1', next: '/' })
+    expect(res.status).toBe(302)
+    expect(res.headers.get('set-cookie')).toContain('pl_detail=1')
+    expect(await (await get('/', { headers: { cookie: 'pl_detail=1' } })).text()).toContain('<html lang="ko" data-detail="">')
+    expect(await (await get('/')).text()).not.toContain('<html lang="ko" data-detail')
+    const off = await form('/settings', { detail: '0', next: '/' }, 'pl_detail=1')
+    expect(off.headers.get('set-cookie')).toMatch(/pl_detail=;|max-age=0/i)
+  })
+  it('알림은 회원 행에 남고, 관심 약관을 둔 회원만 수신자다. 비회원은 로그인으로 보낸다', async () => {
+    const cookie = await login('kim@example.com')
+    await form(`/watch/${DOC}`, { on: '1' }, cookie, `${BASE}/`)
+    expect(await notifyRecipients(E, DOC)).toEqual([])
+    await form('/settings', { notify: '1', next: '/' }, cookie)
+    expect((await findUserByEmail(E, 'kim@example.com'))?.notify).toBe(1)
+    expect(await notifyRecipients(E, DOC)).toEqual(['kim@example.com'])
+    expect(await notifyRecipients(E, 'toss-terms')).toEqual([])
+    expect(await (await get('/', { headers: { cookie } })).text()).toContain('name="notify" value="0"')
+    await form('/settings', { notify: '0', next: '/' }, cookie)
+    expect(await notifyRecipients(E, DOC)).toEqual([])
+    expect(await (await get('/')).text()).toContain('href="/login?next=%2F"')
+  })
+  it('카드에 로고와 마지막 확인 시각이 찍힌다', async () => {
+    await updateDocument(E, DOC, { last_success_at: new Date(Date.now() - 3 * 3600_000).toISOString() })
+    const home = await (await get('/')).text()
+    expect(home).toContain(`<img class="logo" src="${LOGOS.daangn}"`)
+    expect(home).toContain('3시간 전 확인')
+    expect(ago(new Date(Date.now() - 30_000).toISOString())).toBe('방금')
+    expect(ago(new Date(Date.now() - 5 * 86_400_000).toISOString())).toBe('5일 전')
   })
 })
 

@@ -155,7 +155,7 @@ export const weeklyViews = (env: Env, days = 7) => {
 // ── 회원·세션 (migrations/0004_users.sql) ────────────────────────
 export interface UserRow {
   id: string; email: string; name: string | null; picture: string | null; password_hash: string | null; google_sub: string | null
-  created_at: string; last_login_at: string | null; feed_key?: string | null
+  created_at: string; last_login_at: string | null; feed_key?: string | null; notify?: number
 }
 export interface SessionRow { id: string; user_id: string; created_at: string; expires_at: string; user_agent: string | null }
 
@@ -187,6 +187,10 @@ export const sessionUser = (env: Env, sessionId: string, at: string) =>
 export const deleteSession = (env: Env, sessionId: string) => dbOf(env).run('DELETE FROM sessions WHERE id = ?', [sessionId])
 export const deleteExpiredSessions = (env: Env) => dbOf(env).run('DELETE FROM sessions WHERE expires_at <= ?', [now()])
 export const countUsers = (env: Env) => dbOf(env).first<{ n: number }>('SELECT COUNT(*) AS n FROM users').then((r) => r?.n ?? 0)
+
+/** 이 문서를 관심에 두고 알림을 켠 회원의 이메일 (migrations/0006_notify.sql). */
+export const notifyRecipients = (env: Env, docId: string) =>
+  dbOf(env).all<{ email: string }>('SELECT u.email FROM watches w JOIN users u ON u.id = w.user_id WHERE w.document_id = ? AND u.notify = 1', [docId]).then((r) => r.map((x) => x.email))
 
 export const deleteUserSessions = (env: Env, userId: string) => dbOf(env).run('DELETE FROM sessions WHERE user_id = ?', [userId])
 
