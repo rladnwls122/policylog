@@ -223,6 +223,19 @@ tools/
 - **디자인** — 뉴모피즘. 표면과 바탕이 같은 색이고 깊이는 두 방향의 그림자로만 낸다. 색 사건은 redline(지움·넣음)과 accent(검색 포커스·주요 버튼·순위) 둘뿐이다. 화면 이동은 문서 간 View Transition, 카드는 순서대로 떠오르고 올리면 뜨고 누르면 가라앉는다. `prefers-reduced-motion` 이면 전부 끈다.
 - **다크 모드** — 기본은 시스템 설정을 따르고, 상단 오른쪽의 해·달 버튼으로 고정한다. 선택은 `pl_theme` 쿠키(dark·light)에 남고 서버가 `<html data-theme>` 으로 그리므로 새로고침해도 깜빡이지 않는다. 다크 토큰은 한 벌이고 "시스템이 어둡고 밝게 고정하지 않음" 과 "어둡게 고정함" 두 선택자가 같은 문자열을 받는다 (`src/views.tsx` 의 `DARK`). JS 가 없으면 버튼이 `/theme` 폼으로 동작하고, 있으면 그 자리에서 0.4초 동안 색이 넘어간다. 브라우저 상단 색(`theme-color`)도 함께 바뀐다.
 
+## 회원이 얻는 것
+
+- **관심 약관** — 카드와 문서 화면의 별을 누르면 담긴다 (`watches`). 홈 상단에 "내 관심 약관" 이 먼저 서고, `/me` 에 모아 보인다. 비회원이 별을 누르면 로그인으로 갔다가 그 자리로 돌아온다.
+- **개인 RSS** — `/me/feed.xml?key=…`. 관심 약관 전체의 변경이 피드 하나로 온다. RSS 리더는 쿠키를 못 보내므로 주소의 키가 열쇠다. `/me` 에서 키를 새로 만들면 옛 주소는 그 자리에서 죽는다.
+- **계정** — 표시 이름 변경, 모든 기기에서 로그아웃, 탈퇴(관심·세션·회원을 한 트랜잭션으로 지운다).
+
+## 탐색
+
+- **변경 기록 거르기** — `/changes?cat=OVERSEAS_TRANSFER&imp=hi`. 주제는 분류표의 키, 중요도는 `hi`(35 이상)·`mid`(20 이상). 모르는 값은 무시한다.
+- **문서 타임라인** — 문서 화면의 버전 목록은 표가 아니라 타임라인이다. 점의 색이 그 버전이 만든 변경의 중요도다.
+- **이웃 변경** — 변경 화면 아래에서 같은 문서의 이전·다음 변경으로 간다 (`rel=prev/next`).
+- **검색 엔진** — `/robots.txt`, `/sitemap.xml`(문서 전부와 최근 변경 500건), 모든 화면에 canonical·OpenGraph 메타. 회원·인증·검색 화면은 `noindex`. API 와 피드는 5분 캐시.
+
 ## 회원·로그인 (`src/auth.ts`)
 
 - **이메일 가입** — PBKDF2-SHA256 100,000회(WebCrypto), 소금 16바이트. 메일을 보내지 않으므로 이메일 인증과 비밀번호 재설정은 없다. 같은 이메일로 Google 로그인하면 그 계정에 이어지니, 비밀번호를 잊으면 그 길로 들어온다.
@@ -230,7 +243,7 @@ tools/
 - **세션** — 30일. 무작위 토큰의 SHA-256 만 DB 에 있고 원문은 HttpOnly 쿠키에만 있다. 가입·로그인·로그아웃은 POST 폼이고 SameSite=Lax 에 더해 Origin 을 확인한다. 만료 세션은 크론이 지운다.
 - **설정** — Google Cloud Console 에서 OAuth 클라이언트(웹)를 만들고 승인된 리디렉션 URI 에 `https://<호스트>/auth/google/callback` 을 넣는다 (로컬은 `http://localhost:8788/auth/google/callback`). `GOOGLE_CLIENT_ID` 는 `wrangler.jsonc` 의 vars, `GOOGLE_CLIENT_SECRET` 은 `npx wrangler secret put GOOGLE_CLIENT_SECRET`. 둘 다 없으면 Google 버튼이 빠지고 이메일 가입만 된다.
 - **무료 플랜** — PBKDF2 100,000회는 CPU 10ms 한도를 넘길 수 있다. 그러면 `PASSWORD_ITERATIONS` 를 낮춘다. 해시 문자열에 횟수가 들어 있어 기존 계정은 그대로 검증된다.
-- **없는 것** — 로그인 시도 제한. 필요하면 Cloudflare WAF 의 rate limiting 규칙을 `/login` 에 건다.
+- **시도 제한** — 이메일과 IP(`CF-Connecting-IP`) 각각 15분에 10회를 넘기면 그 창이 끝날 때까지 막는다 (`login_attempts`). 성공하면 지우고, 크론이 하루 지난 기록을 치운다.
 
 ## 렌더링 수집 (§85)
 

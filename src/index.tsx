@@ -3,15 +3,16 @@ import { basicAuth } from 'hono/basic-auth'
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
 import { DOCUMENTS } from './documents'
 import { type Env, syncDocuments, listDocuments, getDocument, listVersions, getVersion, getChange, listChangesForDocument, recentChanges, versionCounts, updateDocument, now,
-  latestChanges, countChanges, weeklyViews, recordView, deleteExpiredSessions, countUsers, type UserRow } from './db'
+  latestChanges, countChanges, weeklyViews, recordView, deleteExpiredSessions, countUsers, type UserRow, type ChangeListRow,
+  listWatched, addWatch, removeWatch, watchedChanges, listChanges, findUserByFeedKey, deleteUserSessions, deleteUser, purgeAttempts, updateUser } from './db'
 import { sectionsOf } from './normalize'
 import { shapeVersion, excerpt } from './public'
 import { backfill, poll, runScheduled, rebuildChanges, discover, probe } from './acquire'
 import { rankFeatured, matchDocuments } from './rank'
 import { withDb, dbOf } from './sql'
 import { SESSION_COOKIE, OAUTH_COOKIE, SESSION_DAYS, userFromToken, createSession, destroySession, joinWithEmail, loginWithEmail,
-  googleEnabled, googleAuthUrl, googleExchange, userFromGoogle, randomToken, safeNext } from './auth'
-import { Layout, Home, IntroPage, SearchPage, ChangesPage, DocumentPage, VersionPage, ChangePage, BotPage, NotFoundPage, AdminPage, JoinPage, LoginPage, type Theme } from './views'
+  googleEnabled, googleAuthUrl, googleExchange, userFromGoogle, randomToken, safeNext, ensureFeedKey } from './auth'
+import { Layout, Home, IntroPage, SearchPage, ChangesPage, DocumentPage, VersionPage, ChangePage, BotPage, NotFoundPage, AdminPage, JoinPage, LoginPage, MePage, CAT, type Theme } from './views'
 
 type App = { Bindings: Env; Variables: { user: UserRow | null } }
 const app = new Hono<App>()
@@ -27,16 +28,37 @@ const themeOf = (c: Context<App>): Theme | undefined => { const t = getCookie(c,
 const here = (c: Context<App>) => { const u = new URL(c.req.url); return u.pathname + u.search }
 
 /** 공통 옷. 회원 여부·테마·현재 위치를 상단에 넘긴다. */
-const page = (c: Context<App>, title: string, body: unknown, opts: { feed?: string; path?: string; status?: 200 | 404 } = {}) =>
-  c.html(<Layout title={title} siteUrl={c.env.SITE_URL} feed={opts.feed} path={opts.path} user={c.get('user')} theme={themeOf(c)} here={here(c)}>{body as any}</Layout>, opts.status ?? 200)
+const page = (c: Context<App>, title: string, body: unknown, opts: { feed?: string; path?: string; status?: 200 | 404; description?: string; noindex?: boolean } = {}) =>
+  c.html(<Layout title={title} siteUrl={c.env.SITE_URL} feed={opts.feed} path={opts.path} description={opts.description} noindex={opts.noindex} user={c.get('user')} theme={themeOf(c)} here={here(c)}>{body as any}</Layout>, opts.status ?? 200)
+
+/** 폼을 보낸 화면으로 돌아간다. 같은 출처의 Referer 만 믿고, 없으면 fallback. */
+const back = (c: Context<App>, fallback: string) => {
+  const r = c.req.header('referer')
+  if (r) { try { const u = new URL(r); if (u.origin === new URL(c.req.url).origin) return u.pathname + u.search } catch { /* 무시 */ } }
+  return fallback
+}
+const clientIp = (c: Context<App>) => c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? null
+
+/** RSS 2.0. 문서 피드와 개인 피드가 같은 모양이다. 제목·중요도·분류만 싣고 본문은 싣지 않는다 (D-1). */
+function rss(site: string, title: string, link: string, description: string, changes: ChangeListRow[]) {
+  const esc = (s: string) => s.replace(/[<>&]/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[ch]!)
+  const items = changes.map((ch) => `
+    <item>
+      <title>${esc(`${ch.title} 변경 · ${ch.effective_at ? `시행 ${ch.effective_at}` : ch.detection_window_end.slice(0, 10) + ' 감지'}`)}</title>
+      <link>${site}/changes/${ch.id}</link><guid>${site}/changes/${ch.id}</guid>
+      <pubDate>${new Date(ch.created_at).toUTCString()}</pubDate>
+      <description>${esc(`중요도 ${ch.importance} · ${(JSON.parse(ch.categories) as string[]).join(', ')}${ch.suppressed_reason ? ' · 이력 백필' : ''}`)}</description>
+    </item>`).join('')
+  return `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>${esc(title)} · POLICYLOG</title><link>${link}</link><description>${esc(description)}</description>${items}</channel></rss>`
+}
 
 /** 스플래시를 한 번 본 방문자에게 다시 보이지 않게 하는 쿠키. 값 하나뿐이고 누구인지 식별하지 않는다. */
 export const INTRO_COOKIE = 'pl_intro'
 
-/** 홈과 검색이 함께 쓰는 신호. 공개 억제된 문서는 여기서 걸러진다. */
-async function catalog(env: Env) {
-  const [docs, counts, latest, views] = await Promise.all([listDocuments(env), versionCounts(env), latestChanges(env), weeklyViews(env)])
-  return { docs: docs.filter((d) => !d.publication_suppressed), signals: { counts, latest, views } }
+/** 홈과 검색이 함께 쓰는 신호. 공개 억제된 문서는 여기서 걸러진다. 회원이면 관심 문서 집합이 붙는다. */
+async function catalog(env: Env, user: UserRow | null = null) {
+  const [docs, counts, latest, views, watched] = await Promise.all([listDocuments(env), versionCounts(env), latestChanges(env), weeklyViews(env), user ? listWatched(env, user.id) : undefined])
+  return { docs: docs.filter((d) => !d.publication_suppressed), signals: { counts, latest, views, watched } }
 }
 
 // 공개 문서만. 게시 억제(테이크다운)된 문서는 존재하지 않는 것처럼 404.
@@ -49,8 +71,8 @@ async function publicDoc(env: Env, id: string) {
 // 홈. 상단은 검색과 이번 주 조회 상위 세 장, 하단은 나머지 문서의 그리드 — 비회원은 PREVIEW_CARDS 장까지만 보인다.
 // 첫 방문(비회원, 쿠키 없음)이면 소개 스플래시가 위를 덮는다 — 서버가 결정하므로 깜빡임이 없다.
 app.get('/', async (c) => {
-  const [{ docs, signals }, total] = await Promise.all([catalog(c.env), countChanges(c.env)])
   const user = c.get('user')
+  const [{ docs, signals }, total] = await Promise.all([catalog(c.env, user), countChanges(c.env)])
   const showIntro = !user && getCookie(c, INTRO_COOKIE) !== '1'
   return page(c, '약관 변경 이력', <Home docs={docs} signals={signals} featured={rankFeatured(docs, signals)} total={total} showIntro={showIntro} member={!!user} />, { path: '/' })
 })
@@ -77,11 +99,18 @@ app.get('/start', (c) => {
 app.get('/search', async (c) => {
   const q = (c.req.query('q') ?? '').trim().slice(0, 80)
   if (!q) return c.redirect('/', 302)
-  const { docs, signals } = await catalog(c.env)
-  return page(c, `${q} 검색`, <SearchPage q={q} docs={matchDocuments(docs, q)} signals={signals} member={!!c.get('user')} />, { path: '/search' })
+  const { docs, signals } = await catalog(c.env, c.get('user'))
+  return page(c, `${q} 검색`, <SearchPage q={q} docs={matchDocuments(docs, q)} signals={signals} member={!!c.get('user')} />, { path: '/search', noindex: true })
 })
 
-app.get('/changes', async (c) => page(c, '변경 기록', <ChangesPage changes={await recentChanges(c.env, 100)} />, { path: '/changes' }))
+// 변경 기록. 주제(cat)와 중요도(imp=hi|mid)로 거른다. 값은 서버가 아는 것만 받는다.
+app.get('/changes', async (c) => {
+  const cat = c.req.query('cat')
+  const imp = c.req.query('imp')
+  const f = { cat: cat && cat in CAT ? cat : undefined, imp: imp === 'hi' || imp === 'mid' ? imp : undefined }
+  const changes = await listChanges(c.env, { cat: f.cat, minImportance: f.imp === 'hi' ? 35 : f.imp === 'mid' ? 20 : undefined, limit: 100 })
+  return page(c, '변경 기록', <ChangesPage changes={changes} cat={f.cat} imp={f.imp} />, { path: '/changes' })
+})
 
 app.get('/bot', (c) => page(c, '수집 정책', <BotPage ua={c.env.USER_AGENT} contact={c.env.CONTACT_EMAIL} robotsMode={c.env.ROBOTS_MODE ?? 'ENFORCE'} />, { path: '/bot' }))
 
@@ -89,8 +118,10 @@ app.get('/bot', (c) => page(c, '수집 정책', <BotPage ua={c.env.USER_AGENT} c
 app.get('/policies/:id', async (c) => {
   const d = await publicDoc(c.env, c.req.param('id'))
   if (!d) return c.notFound()
-  const [versions, changes] = await Promise.all([listVersions(c.env, d.id), listChangesForDocument(c.env, d.id), recordView(c.env, d.id)])
-  return page(c, d.title, <DocumentPage d={d} versions={versions} changes={changes} />, { feed: `/policies/${d.id}/feed.xml` })
+  const user = c.get('user')
+  const [versions, changes, watched] = await Promise.all([listVersions(c.env, d.id), listChangesForDocument(c.env, d.id), user ? listWatched(c.env, user.id) : undefined, recordView(c.env, d.id)])
+  return page(c, d.title, <DocumentPage d={d} versions={versions} changes={changes} watched={watched ? watched.has(d.id) : null} />,
+    { feed: `/policies/${d.id}/feed.xml`, description: `${d.title}의 보존한 버전 ${versions.length}개와 변경 ${changes.length}건. ${d.service_name}의 ${d.type === 'TERMS' ? '이용약관' : '개인정보 처리방침'} 변경 이력.` })
 })
 
 app.get('/policies/:id/versions/:vid', async (c) => {
@@ -106,9 +137,15 @@ app.get('/changes/:id', async (c) => {
   if (!ch) return c.notFound()
   const d = await publicDoc(c.env, ch.document_id)
   if (!d) return c.notFound()
-  const [from, to] = await Promise.all([getVersion(c.env, ch.from_version_id), getVersion(c.env, ch.to_version_id), recordView(c.env, d.id)])
+  const [from, to, siblings] = await Promise.all([getVersion(c.env, ch.from_version_id), getVersion(c.env, ch.to_version_id), listChangesForDocument(c.env, d.id), recordView(c.env, d.id)])
   if (!from || !to) return c.notFound()
-  return page(c, `${d.title} 변경`, <ChangePage d={d} c={ch} from={from} to={to} />)
+  // 같은 문서의 이웃 변경. 목록은 최신순이라 앞이 다음(더 새로운), 뒤가 이전이다.
+  const i = siblings.findIndex((x) => x.id === ch.id)
+  const newer = i > 0 ? siblings[i - 1] : null
+  const older = i >= 0 && i + 1 < siblings.length ? siblings[i + 1] : null
+  const cats = (JSON.parse(ch.categories) as string[]).map((k) => CAT[k] ?? k).join(', ')
+  return page(c, `${d.title} 변경`, <ChangePage d={d} c={ch} from={from} to={to} newer={newer} older={older} />,
+    { description: `${d.title} ${to.effective_at ? `${to.effective_at} 시행` : '변경'}. ${cats || '분류 없음'}. 조문 단위 비교.` })
 })
 
 // ── 회원 (src/auth.ts) ─────────────────────────────────────────
@@ -140,7 +177,7 @@ app.post('/login', async (c) => {
   if (!sameOrigin(c)) return c.text('forbidden', 403)
   const f = await c.req.parseBody()
   const next = safeNext(str(f.next))
-  const r = await loginWithEmail(c.env, { email: str(f.email), password: str(f.password) })
+  const r = await loginWithEmail(c.env, { email: str(f.email), password: str(f.password) }, clientIp(c))
   if (!r.ok) return page(c, '로그인', <LoginPage next={next} google={googleEnabled(c.env)} error={r.error} values={{ email: str(f.email) }} />, { path: '/login' })
   signIn(c, await createSession(c.env, r.user.id, userAgent(c)))
   return c.redirect(next, 302)
@@ -150,6 +187,72 @@ app.post('/logout', async (c) => {
   await destroySession(c.env, getCookie(c, SESSION_COOKIE))
   deleteCookie(c, SESSION_COOKIE, { path: '/' })
   return c.redirect('/', 302)
+})
+
+// ── 관심 약관 · 내 페이지 ───────────────────────────────────────
+const requireMember = (c: Context<App>) => (c.get('user') ? null : c.redirect(`/login?next=${encodeURIComponent(back(c, here(c)))}`, 302))
+
+app.post('/watch/:id', async (c) => {
+  if (!sameOrigin(c)) return c.text('forbidden', 403)
+  const gate = requireMember(c)
+  if (gate) return gate
+  const d = await publicDoc(c.env, c.req.param('id'))
+  if (!d) return c.notFound()
+  const f = await c.req.parseBody()
+  if (str(f.on) === '0') await removeWatch(c.env, c.get('user')!.id, d.id)
+  else await addWatch(c.env, c.get('user')!.id, d.id)
+  return c.redirect(back(c, `/policies/${d.id}`), 302)
+})
+
+app.get('/me', async (c) => {
+  const gate = requireMember(c)
+  if (gate) return gate
+  const user = c.get('user')!
+  const [{ docs, signals }, changes, key] = await Promise.all([catalog(c.env, user), watchedChanges(c.env, user.id, 30), ensureFeedKey(c.env, user)])
+  const mine = docs.filter((d) => signals.watched!.has(d.id))
+  const feedUrl = `${c.env.SITE_URL}/me/feed.xml?key=${key}`
+  return page(c, '내 페이지', <MePage user={user} docs={mine} signals={signals} changes={changes} feedUrl={feedUrl} saved={c.req.query('saved') ?? undefined} />, { path: '/me', noindex: true })
+})
+app.post('/me/name', async (c) => {
+  if (!sameOrigin(c)) return c.text('forbidden', 403)
+  const gate = requireMember(c)
+  if (gate) return gate
+  const name = str((await c.req.parseBody()).name).trim().slice(0, 60)
+  await updateUser(c.env, c.get('user')!.id, { name: name || null })
+  return c.redirect('/me?saved=name', 302)
+})
+app.post('/me/feed/rotate', async (c) => {
+  if (!sameOrigin(c)) return c.text('forbidden', 403)
+  const gate = requireMember(c)
+  if (gate) return gate
+  await ensureFeedKey(c.env, c.get('user')!, true)
+  return c.redirect('/me?saved=feed', 302)
+})
+app.post('/me/logout-all', async (c) => {
+  if (!sameOrigin(c)) return c.text('forbidden', 403)
+  const gate = requireMember(c)
+  if (gate) return gate
+  await deleteUserSessions(c.env, c.get('user')!.id)
+  deleteCookie(c, SESSION_COOKIE, { path: '/' })
+  return c.redirect('/login', 302)
+})
+app.post('/me/delete', async (c) => {
+  if (!sameOrigin(c)) return c.text('forbidden', 403)
+  const gate = requireMember(c)
+  if (gate) return gate
+  if (str((await c.req.parseBody()).confirm) !== '1') return c.redirect('/me?saved=confirm', 302)
+  await deleteUser(c.env, c.get('user')!.id)
+  deleteCookie(c, SESSION_COOKIE, { path: '/' })
+  return c.redirect('/', 302)
+})
+// 개인 RSS. 쿠키 대신 주소의 키로 회원을 찾는다. 키가 틀리면 있는지 없는지도 말하지 않는다.
+app.get('/me/feed.xml', async (c) => {
+  const key = c.req.query('key') ?? ''
+  const user = key.length >= 16 ? await findUserByFeedKey(c.env, key) : null
+  if (!user) return c.notFound()
+  const changes = await watchedChanges(c.env, user.id, 50)
+  return c.body(rss(c.env.SITE_URL, '내 관심 약관', `${c.env.SITE_URL}/me`, '관심 약관의 변경 이력', changes), 200,
+    { 'content-type': 'application/rss+xml; charset=utf-8', 'cache-control': 'private, max-age=300' })
 })
 
 // Google 로그인 (OpenID Connect 인가 코드 + PKCE). state·verifier·돌아갈 곳은 10분짜리 HttpOnly 쿠키에 둔다.
@@ -173,25 +276,30 @@ app.get('/auth/google/callback', async (c) => {
   } catch (e) { return fail(String(e)) }
 })
 
-// RSS (§33): 문서별 변경 피드. 계정 없이 쓰는 유일한 알림 채널.
+// RSS (§33): 문서별 변경 피드. 계정 없이 쓰는 알림 채널.
 app.get('/policies/:id/feed.xml', async (c) => {
   const d = await publicDoc(c.env, c.req.param('id'))
   if (!d) return c.notFound()
   const changes = (await listChangesForDocument(c.env, d.id)).slice(0, 30)
+  return c.body(rss(c.env.SITE_URL, d.title, `${c.env.SITE_URL}/policies/${d.id}`, `${d.title} 변경 이력`, changes), 200,
+    { 'content-type': 'application/rss+xml; charset=utf-8', 'cache-control': 'public, max-age=300' })
+})
+
+// 검색 엔진용. 회원·인증·검색 화면은 색인하지 않는다.
+app.get('/robots.txt', (c) => c.text(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /me\nDisallow: /auth/\nDisallow: /login\nDisallow: /join\nDisallow: /search\nSitemap: ${c.env.SITE_URL}/sitemap.xml\n`, 200, { 'cache-control': 'public, max-age=3600' }))
+app.get('/sitemap.xml', async (c) => {
   const site = c.env.SITE_URL
-  const esc = (s: string) => s.replace(/[<>&]/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[ch]!)
-  const items = changes.map((ch) => `
-    <item>
-      <title>${esc(`${d.title} 변경 · ${ch.effective_at ? `시행 ${ch.effective_at}` : ch.detection_window_end.slice(0, 10) + ' 감지'}`)}</title>
-      <link>${site}/changes/${ch.id}</link><guid>${site}/changes/${ch.id}</guid>
-      <pubDate>${new Date(ch.created_at).toUTCString()}</pubDate>
-      <description>${esc(`중요도 ${ch.importance} · ${(JSON.parse(ch.categories) as string[]).join(', ')}${ch.suppressed_reason ? ' · 이력 백필' : ''}`)}</description>
-    </item>`).join('')
-  return c.body(`<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>${esc(d.title)} · POLICYLOG</title><link>${site}/policies/${d.id}</link><description>${esc(d.title)} 변경 이력</description>${items}</channel></rss>`,
-    200, { 'content-type': 'application/rss+xml; charset=utf-8' })
+  const [docs, changes, latest] = await Promise.all([listDocuments(c.env), listChanges(c.env, { limit: 500 }), latestChanges(c.env)])
+  const url = (path: string, lastmod?: string | null) => `<url><loc>${site}${path}</loc>${lastmod ? `<lastmod>${lastmod.slice(0, 10)}</lastmod>` : ''}</url>`
+  const urls = [url('/'), url('/intro'), url('/changes'), url('/bot'),
+    ...docs.filter((d) => !d.publication_suppressed).map((d) => url(`/policies/${d.id}`, latest.get(d.id)?.observed_at)),
+    ...changes.map((ch) => url(`/changes/${ch.id}`, ch.observed_at))]
+  return c.body(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.join('')}</urlset>`, 200,
+    { 'content-type': 'application/xml; charset=utf-8', 'cache-control': 'public, max-age=3600' })
 })
 
 // ── 공개 API (§41). 전체 본문을 돌려주는 엔드포인트는 없다 — test/policy.test.ts 가 이를 강제한다. ──
+app.use('/api/*', async (c, next) => { await next(); c.header('cache-control', 'public, max-age=300') })
 app.get('/api/v1/services', async (c) => {
   const docs = (await listDocuments(c.env)).filter((d) => !d.publication_suppressed)
   const counts = await versionCounts(c.env)
@@ -272,7 +380,12 @@ app.notFound((c) => page(c, '없는 페이지', <NotFoundPage />, { status: 404 
 export default {
   fetch: app.fetch,
   async scheduled(_ev: ScheduledEvent, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil(withDb(env, async () => { await syncDocuments(env, DOCUMENTS); await deleteExpiredSessions(env); await runScheduled(env) }))
+    ctx.waitUntil(withDb(env, async () => {
+      await syncDocuments(env, DOCUMENTS)
+      await deleteExpiredSessions(env)
+      await purgeAttempts(env, new Date(Date.now() - 86_400_000).toISOString())
+      await runScheduled(env)
+    }))
   },
 }
 export { app }

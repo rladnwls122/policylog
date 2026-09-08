@@ -357,6 +357,38 @@ footer .brand{font-size:13px}
 .iconbtn:hover{color:var(--accent);transform:translateY(-1px);box-shadow:var(--raise)}
 .iconbtn:active{transform:none;box-shadow:var(--sink-sm)}
 
+/* 관심 별 · 타임라인 · 거르기 · 내 페이지 */
+.ctl{display:inline-flex;gap:6px;align-items:center}
+.watch{position:relative;z-index:1;display:inline-flex}
+.iconbtn.sm{width:30px;height:30px}
+.iconbtn.sm svg{width:15px;height:15px}
+.watch.on .iconbtn,.watch.on .btn{color:var(--warn)}
+.watch .btn svg{width:16px;height:16px}
+.timeline{list-style:none;margin:18px 0 0;padding:0 0 0 24px;position:relative;max-width:none}
+.timeline::before{content:"";position:absolute;left:5px;top:12px;bottom:12px;width:2px;background:var(--line)}
+.timeline li{position:relative;margin:0 0 14px;padding:18px 22px;border-radius:var(--r-sm);background:var(--bg);box-shadow:var(--raise-sm);display:grid;gap:8px}
+.timeline .dot{position:absolute;left:-24px;top:26px;width:12px;height:12px;border-radius:50%;background:var(--bg);border:2px solid var(--ink-3);box-sizing:border-box}
+.timeline li.mid .dot{border-color:var(--ink)}
+.timeline li.hi .dot{background:var(--accent);border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+.tl-head{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center}
+.seal-link{text-decoration:none}
+.seal-link:hover .seal{box-shadow:var(--raise-sm)}
+.tl-change{display:inline-flex;gap:10px;align-items:center;flex-wrap:wrap;text-decoration:none;font-size:14px}
+.tl-change:hover span:first-of-type{text-decoration:underline}
+.filters{display:grid;gap:10px;margin:28px 0 0}
+a.chip{text-decoration:none;display:inline-flex;align-items:center}
+.pager{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:40px}
+.grid.two{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+.feed-panel{display:flex;flex-wrap:wrap;gap:12px 16px;align-items:center;padding:16px 22px}
+.feed{display:block;flex:1;min-width:0;word-break:break-all;font-size:13px;padding:12px 14px;border-radius:12px;background:var(--well)}
+.check{display:flex;gap:8px;align-items:center;font-weight:500}
+.check input{width:18px;height:18px;padding:0;box-shadow:none;border-radius:4px;accent-color:var(--accent);flex:none}
+.btn.danger{color:var(--del-ink);background:var(--del);box-shadow:var(--raise-sm)}
+.card.danger{box-shadow:var(--sink-sm)}
+.card.danger:hover{transform:none}
+.note.ok{color:var(--ins-ink);background:var(--ins);box-shadow:none}
+.note.warn{color:var(--del-ink);background:var(--del);box-shadow:none}
+
 /* 스플래시·소개 움직임 */
 .intro-hero{position:relative}
 .intro-hero>*{position:relative;z-index:1}
@@ -440,12 +472,13 @@ const NAV: [string, string][] = [['/', '기록'], ['/changes', '변경 기록'],
 const Account: FC<{ user?: UserRow | null }> = ({ user }) => user
   ? <span class="me">
       {user.picture ? <img src={user.picture} alt="" referrerpolicy="no-referrer" /> : <i class="avatar">{(user.name ?? user.email).slice(0, 1).toUpperCase()}</i>}
-      <span class="name">{user.name ?? user.email}</span>
+      <a class="name" href="/me" title="내 페이지">{user.name ?? user.email}</a>
       <form method="post" action="/logout"><button class="navbtn" type="submit">로그아웃</button></form>
     </span>
   : <span class="me"><a href="/login">로그인</a><a class="join" href="/join">회원가입</a></span>
 
 export type Theme = 'light' | 'dark'
+const DEFAULT_DESCRIPTION = '한국 서비스의 이용약관과 개인정보 처리방침을 매일 확인해 조문 단위로 변경을 기록하는 공개 아카이브'
 
 const ThemeToggle: FC<{ next: string }> = ({ next }) => (
   <span class="theme">
@@ -465,12 +498,19 @@ const ThemeToggle: FC<{ next: string }> = ({ next }) => (
 )
 
 /** theme 이 없으면 시스템 설정을 따른다. here 는 테마를 바꾼 뒤 돌아올 곳. */
-export const Layout: FC<PropsWithChildren<{ title: string; siteUrl: string; feed?: string; path?: string; description?: string; user?: UserRow | null; theme?: Theme; here?: string }>> = ({ title, feed, path, description, user, theme, here, children }) => (
+export const Layout: FC<PropsWithChildren<{ title: string; siteUrl: string; feed?: string; path?: string; description?: string; user?: UserRow | null; theme?: Theme; here?: string; noindex?: boolean }>> = ({ title, siteUrl, feed, path, description, user, theme, here, noindex, children }) => (
   <html lang="ko" data-theme={theme}>
     <head>
       <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>{title} · POLICYLOG</title>
-      <meta name="description" content={description ?? '한국 서비스의 이용약관과 개인정보 처리방침을 매일 확인해 조문 단위로 변경을 기록하는 공개 아카이브'} />
+      <meta name="description" content={description ?? DEFAULT_DESCRIPTION} />
+      {/* 공유 카드와 검색 엔진용. 주소는 질의 없이 경로만 적어 같은 화면이 하나로 모이게 한다. */}
+      <link rel="canonical" href={`${siteUrl}${(here ?? '/').split('?')[0]}`} />
+      <meta property="og:site_name" content="POLICYLOG" /><meta property="og:type" content="website" /><meta property="og:locale" content="ko_KR" />
+      <meta property="og:title" content={`${title} · POLICYLOG`} /><meta property="og:description" content={description ?? DEFAULT_DESCRIPTION} />
+      <meta property="og:url" content={`${siteUrl}${(here ?? '/').split('?')[0]}`} />
+      <meta name="twitter:card" content="summary" />
+      {noindex && <meta name="robots" content="noindex" />}
       {theme
         ? <meta name="theme-color" content={THEME_COLOR[theme]} />
         : <><meta name="theme-color" media="(prefers-color-scheme: light)" content={THEME_COLOR.light} /><meta name="theme-color" media="(prefers-color-scheme: dark)" content={THEME_COLOR.dark} /></>}
@@ -536,7 +576,7 @@ export const Seal: FC<{ effectiveAt: string | null; observedAt?: string }> = ({ 
     ? <span class="seal"><em>시행</em>{effectiveAt.replaceAll('-', '.')}</span>
     : <span class="seal void"><em>감지</em>{(observedAt ?? '').slice(0, 10).replaceAll('-', '.')}</span>
 
-const CAT: Record<string, string> = {
+export const CAT: Record<string, string> = {
   AI_DATA_USAGE: 'AI·데이터 활용', DATA_SHARING: '제3자 제공', OVERSEAS_TRANSFER: '국외 이전', PROCESSOR_DELEGATION: '처리 위탁', PRICE: '요금',
   REFUND: '환불', PAYMENT: '결제', DATA_RETENTION: '보유 기간', SUSPENSION: '이용 제한·해지', LIABILITY: '책임', DISPUTE_RESOLUTION: '분쟁 해결',
   DATA_COLLECTION: '수집 항목', SECURITY: '보안', ACCOUNT: '계정', OTHER: '기타',
@@ -601,6 +641,29 @@ const MiniRedline: FC<{ c: ChangeListRow }> = ({ c }) => {
   )
 }
 
+const Star: FC<{ on: boolean }> = ({ on }) => (
+  <svg viewBox="0 0 24 24" fill={on ? 'currentColor' : 'none'} stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true">
+    <path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z" />
+  </svg>
+)
+
+/**
+ * 관심 별. 회원이면 켜고 끄는 폼, 비회원이면 같은 폼이 로그인으로 보낸다(서버가 Referer 로 돌아올 곳을 안다).
+ * 카드의 덮개 링크 위에 떠야 하므로 z-index 를 준다. JS 없이 동작한다.
+ */
+const WatchButton: FC<{ d: Pick<DocumentRow, 'id'>; s: Pick<Signals, 'watched'>; big?: boolean }> = ({ d, s, big }) => {
+  const on = !!s.watched?.has(d.id)
+  const label = !s.watched ? '로그인하고 관심 추가' : on ? '관심 해제' : '관심 추가'
+  return (
+    <form method="post" action={`/watch/${d.id}`} class={`watch${on ? ' on' : ''}`}>
+      <input type="hidden" name="on" value={on ? '0' : '1'} />
+      {big
+        ? <button class="btn sm" type="submit" aria-pressed={on ? 'true' : 'false'}><Star on={on} />{on ? '관심 약관' : '관심 추가'}</button>
+        : <button class="iconbtn sm" type="submit" aria-pressed={on ? 'true' : 'false'} aria-label={label} title={label}><Star on={on} /></button>}
+    </form>
+  )
+}
+
 /** 상단 세 장. 기업 하나에 한 장, 최근 변경의 redline 을 함께 보인다. */
 const FeaturedCard: FC<{ d: DocumentRow; s: Signals; rank: number }> = ({ d, s, rank }) => {
   const c = s.latest.get(d.id)
@@ -609,7 +672,7 @@ const FeaturedCard: FC<{ d: DocumentRow; s: Signals; rank: number }> = ({ d, s, 
   return (
     <article class="card feat in" style={`--i:${rank}`} data-q={searchKey(d)} data-s={statusKey(d)}>
       <span class="rank" aria-label={`${rank}위`}>{rank}</span>
-      <div class="card-top"><Badge d={d} />{v > 0 && <span class="views">이번 주 {v}회 조회</span>}</div>
+      <div class="card-top"><Badge d={d} /><span class="ctl">{v > 0 && <span class="views">이번 주 {v}회 조회</span>}<WatchButton d={d} s={s} /></span></div>
       <h3 class="who"><a class="cover" href={`/policies/${d.id}`}>{d.service_name}</a></h3>
       <p class="what">{d.title}</p>
       {c
@@ -633,7 +696,7 @@ const DocCard: FC<{ d: DocumentRow; s: Signals; i: number }> = ({ d, s, i }) => 
   const active = d.status === 'ACTIVE'
   return (
     <article class={`card doc-card in ${statusKey(d)}`} style={`--i:${i}`} data-q={searchKey(d)} data-s={statusKey(d)}>
-      <div class="card-top"><span class="kind">{TYPE_LABEL[d.type] ?? d.type}</span><Badge d={d} /></div>
+      <div class="card-top"><span class="kind">{TYPE_LABEL[d.type] ?? d.type}</span><span class="ctl"><Badge d={d} /><WatchButton d={d} s={s} /></span></div>
       <h3 class="who">{active
         ? <a class="cover" href={`/policies/${d.id}`}>{d.service_name}</a>
         : <a class="cover" href={d.canonical_url} rel="noopener nofollow">{d.service_name}</a>}</h3>
@@ -768,6 +831,16 @@ export const Home: FC<{ docs: DocumentRow[]; signals: Signals; featured: Documen
         </ul>
       </section>
 
+      {s.watched && s.watched.size > 0 && (
+        <section id="mine" aria-labelledby="mine-title">
+          <div class="sec">
+            <div><h2 id="mine-title">내 관심 약관</h2><p>별을 눌러 담은 문서입니다. 변경이 생기면 여기와 개인 RSS 에 먼저 보입니다.</p></div>
+            <a class="lnk" href="/me">내 페이지</a>
+          </div>
+          <div class="grid">{orderForGrid(docs.filter((d) => s.watched!.has(d.id)), s).slice(0, 8).map((d, i) => <DocCard d={d} s={s} i={i} />)}</div>
+        </section>
+      )}
+
       {featured.length > 0 && (
         <section id="featured" aria-labelledby="featured-title">
           <div class="sec">
@@ -823,16 +896,35 @@ export const SearchPage: FC<{ q: string; docs: DocumentRow[]; signals: Signals; 
   )
 }
 
-export const ChangesPage: FC<{ changes: ChangeListRow[] }> = ({ changes }) => (
+const changesLink = (q: { cat?: string; imp?: string }) => {
+  const p = new URLSearchParams()
+  if (q.cat) p.set('cat', q.cat)
+  if (q.imp) p.set('imp', q.imp)
+  const qs = p.toString()
+  return '/changes' + (qs ? `?${qs}` : '')
+}
+
+export const ChangesPage: FC<{ changes: ChangeListRow[]; cat?: string; imp?: string }> = ({ changes, cat: c0, imp }) => (
   <>
     <section class="hero compact" aria-labelledby="changes-title">
       <p class="eyebrow">변경 기록</p>
-      <h1 id="changes-title">기록된 변경 {changes.length}건</h1>
+      <h1 id="changes-title">{c0 ? `${cat(c0)} 변경` : '기록된 변경'} {changes.length}건</h1>
       <p class="sub">중요도는 바뀐 조문의 주제로 매깁니다. 국외 이전, 제3자 제공, AI 학습 이용이 가장 높습니다.</p>
     </section>
+    <div class="filters" aria-label="거르기">
+      <div class="chips">
+        <a class={`chip${!imp ? ' on' : ''}`} href={changesLink({ cat: c0 })}>모든 중요도</a>
+        <a class={`chip${imp === 'hi' ? ' on' : ''}`} href={changesLink({ cat: c0, imp: 'hi' })}>높음만</a>
+        <a class={`chip${imp === 'mid' ? ' on' : ''}`} href={changesLink({ cat: c0, imp: 'mid' })}>보통 이상</a>
+      </div>
+      <div class="chips">
+        <a class={`chip${!c0 ? ' on' : ''}`} href={changesLink({ imp })}>모든 주제</a>
+        {Object.entries(CAT).map(([k, label]) => <a class={`chip${c0 === k ? ' on' : ''}`} href={changesLink({ cat: k, imp })}>{label}</a>)}
+      </div>
+    </div>
     {changes.length === 0
-      ? <p class="note" style="margin:32px auto">아직 감지된 변경이 없습니다. 문서를 계속 지켜보고 있습니다.</p>
-      : <ul class="ledger" style="margin-top:32px">
+      ? <p class="note" style="margin:32px auto">{c0 || imp ? '이 조건에 맞는 변경이 아직 없습니다.' : '아직 감지된 변경이 없습니다. 문서를 계속 지켜보고 있습니다.'}</p>
+      : <ul class="ledger" style="margin-top:24px">
           {changes.map((c, i) => (
             <li class="in" style={`--i:${i}`}>
               <a class="row" href={`/changes/${c.id}`}>
@@ -850,8 +942,9 @@ export const ChangesPage: FC<{ changes: ChangeListRow[] }> = ({ changes }) => (
   </>
 )
 
-export const DocumentPage: FC<{ d: DocumentRow; versions: { id: string; effective_at: string | null; observed_at: string; provenance: string; source_url: string; text_length: number }[]; changes: ChangeListRow[] }> = ({ d, versions, changes }) => {
+export const DocumentPage: FC<{ d: DocumentRow; versions: { id: string; effective_at: string | null; observed_at: string; provenance: string; source_url: string; text_length: number }[]; changes: ChangeListRow[]; watched: boolean | null }> = ({ d, versions, changes, watched }) => {
   const byTo = new Map(changes.map((c) => [c.to_version_id, c]))
+  const ws = { watched: watched === null ? undefined : new Set(watched ? [d.id] : []) }
   return (
     <>
       <a class="back" href="/">기록 전체</a>
@@ -859,28 +952,36 @@ export const DocumentPage: FC<{ d: DocumentRow; versions: { id: string; effectiv
       <h1>{d.title}</h1>
       <ul class="meta">
         <li><Badge d={d} /></li>
+        <li><WatchButton d={d} s={ws} big /></li>
         <li><a href={d.canonical_url} rel="noopener nofollow">공식 문서</a></li>
         <li><a href={`/policies/${d.id}/feed.xml`}>RSS 구독</a></li>
         {d.official_history_url && <li><a href={d.official_history_url} rel="noopener nofollow">서비스가 공개한 이력</a></li>}
       </ul>
       {d.public_note && <p class="note">{d.public_note}</p>}
       <h2>보존한 버전 {versions.length}개</h2>
-      <p class="small muted">시행일을 누르면 그 시점의 조문 발췌를 볼 수 있습니다.</p>
+      <p class="small muted">위가 현행입니다. 시행일을 누르면 그 시점의 조문 발췌를, 변경을 누르면 앞 버전과의 비교를 볼 수 있습니다.</p>
       {versions.length === 0
         ? <p class="note">아직 보존한 버전이 없습니다. {d.status === 'ACTIVE' ? '다음 확인 때 첫 버전을 보존합니다.' : '지금은 이 문서를 가져오지 못합니다.'}</p>
-        : <div class="panel in"><div class="wrap"><table><thead><tr><th>시행일</th><th>감지</th><th>출처</th><th>변경</th></tr></thead><tbody>
+        : <ol class="timeline">
             {versions.map((v, i) => {
               const c = byTo.get(v.id)
+              const n = c ? (JSON.parse(c.sections) as unknown[]).length : 0
               return (
-                <tr>
-                  <td><a class="num" href={`/policies/${d.id}/versions/${v.id}`}>{v.effective_at ?? <span class="muted">시행일 미표기</span>}</a>{i === 0 && <> <span class="tag ok">현행</span></>}</td>
-                  <td class="small num">{v.observed_at.slice(0, 10)}</td>
-                  <td><Provenance p={v.provenance} /></td>
-                  <td class="small">{c ? <a href={`/changes/${c.id}`}><Importance n={c.importance} /> {cats(c).slice(0, 3).map(cat).join(', ')}</a> : i === versions.length - 1 ? <span class="muted">최초 보존본</span> : ''}</td>
-                </tr>
+                <li class={`in ${c ? (c.importance >= 35 ? 'hi' : 'mid') : ''}`} style={`--i:${i}`}>
+                  <span class="dot" aria-hidden="true"></span>
+                  <div class="tl-head">
+                    <a class="seal-link" href={`/policies/${d.id}/versions/${v.id}`}><Seal effectiveAt={v.effective_at} observedAt={v.observed_at} /></a>
+                    {i === 0 && <span class="tag ok">현행</span>}
+                    <Provenance p={v.provenance} />
+                    <span class="small muted num">감지 {v.observed_at.slice(0, 10)}</span>
+                  </div>
+                  {c
+                    ? <a class="tl-change" href={`/changes/${c.id}`}><Importance n={c.importance} /><span>{catList(cats(c), 3) || '분류 없음'}</span><span class="muted">조문 {n}건 변경</span></a>
+                    : <span class="small muted">{i === versions.length - 1 ? '최초 보존본' : '비교 없음'}</span>}
+                </li>
               )
             })}
-          </tbody></table></div></div>}
+          </ol>}
     </>
   )
 }
@@ -915,7 +1016,8 @@ export const VersionPage: FC<{ d: DocumentRow; v: ReturnType<typeof import('./pu
   </>
 )
 
-export const ChangePage: FC<{ d: DocumentRow; c: ChangeRow; from: { id: string; effective_at: string | null; observed_at: string; source_url: string }; to: { id: string; effective_at: string | null; observed_at: string; source_url: string; provenance: string } }> = ({ d, c, from, to }) => {
+export const ChangePage: FC<{ d: DocumentRow; c: ChangeRow; from: { id: string; effective_at: string | null; observed_at: string; source_url: string }; to: { id: string; effective_at: string | null; observed_at: string; source_url: string; provenance: string }; newer?: ChangeListRow | null; older?: ChangeListRow | null }> = ({ d, c, from, to, newer, older }) => {
+  const when = (x: ChangeListRow) => (x.effective_at ?? x.observed_at.slice(0, 10)).replaceAll('-', '.')
   const sections: ChangeSection[] = JSON.parse(c.sections)
   const rows: TableRowChange[] = JSON.parse(c.table_rows)
   const cs: string[] = JSON.parse(c.categories)
@@ -973,6 +1075,11 @@ export const ChangePage: FC<{ d: DocumentRow; c: ChangeRow; from: { id: string; 
           </div>
         ))}
       </div>
+      <nav class="pager" aria-label="같은 문서의 다른 변경">
+        {older ? <a class="btn sm" href={`/changes/${older.id}`} rel="prev">이전 변경 · {when(older)}</a> : <span />}
+        <a class="btn sm" href={`/policies/${d.id}`}>문서 전체 이력</a>
+        {newer ? <a class="btn sm" href={`/changes/${newer.id}`} rel="next">다음 변경 · {when(newer)}</a> : <span />}
+      </nav>
     </>
   )
 }
@@ -1073,6 +1180,76 @@ export const LoginPage: FC<{ next: string; google: boolean; error?: string; valu
       <p class="small muted" style="margin:0">계정이 없나요? <a href={`/join?next=${encodeURIComponent(next)}`}>회원가입</a></p>
     </div>
   </section>
+)
+
+const SAVED: Record<string, string> = {
+  name: '이름을 바꿨습니다.',
+  feed: '새 RSS 주소를 만들었습니다. 옛 주소는 더 이상 동작하지 않습니다.',
+  confirm: '계정을 삭제하려면 확인란에 표시해 주세요.',
+}
+
+/** 내 페이지: 관심 약관, 그 문서들의 최근 변경, 개인 RSS, 계정. */
+export const MePage: FC<{ user: UserRow; docs: DocumentRow[]; signals: Signals; changes: ChangeListRow[]; feedUrl: string; saved?: string }> = ({ user, docs, signals: s, changes, feedUrl, saved }) => (
+  <>
+    <section class="hero compact" aria-labelledby="me-title">
+      <p class="eyebrow">내 페이지</p>
+      <h1 id="me-title">{user.name ?? user.email} 님의 관심 약관</h1>
+      <p class="sub">카드의 별을 눌러 담은 문서 {docs.length}건. 변경이 생기면 홈 상단과 개인 RSS 에 먼저 보입니다.</p>
+    </section>
+    {saved && SAVED[saved] && <p class={`note ${saved === 'confirm' ? 'warn' : 'ok'}`} role="status" style="margin:24px auto 0">{SAVED[saved]}</p>}
+
+    <div class="sec"><div><h2 id="mine-title">관심 약관 {docs.length}건</h2></div><a class="lnk" href="/">기록 전체</a></div>
+    {docs.length > 0
+      ? <div class="grid">{orderForGrid(docs, s).map((d, i) => <DocCard d={d} s={s} i={i} />)}</div>
+      : <p class="note">아직 없습니다. 카드 오른쪽 위의 별을 누르면 여기에 담깁니다.</p>}
+
+    <div class="sec"><div><h2>관심 약관의 최근 변경</h2><p>무거운 조문부터가 아니라 새 것부터입니다.</p></div></div>
+    {changes.length > 0
+      ? <ul class="ledger">
+          {changes.map((c, i) => (
+            <li class="in" style={`--i:${i}`}>
+              <a class="row" href={`/changes/${c.id}`}>
+                <span class="d"><Seal effectiveAt={c.effective_at} observedAt={c.detection_window_end} /></span>
+                <span class="t">{c.title}</span>
+                <span><Importance n={c.importance} /></span>
+                <span class="k">{catList(cats(c))}{c.suppressed_reason === 'BACKFILL' && <span class="tag mark">과거 이력</span>}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      : <p class="note">관심 약관에 아직 기록된 변경이 없습니다.</p>}
+
+    <div class="sec"><div><h2>개인 RSS</h2><p>관심 약관 전체의 변경을 피드 하나로 받습니다. 주소에 든 키가 곧 열쇠이니 남과 나누지 마세요.</p></div></div>
+    <div class="panel feed-panel">
+      <code class="feed">{feedUrl}</code>
+      <form method="post" action="/me/feed/rotate"><button class="btn sm" type="submit">새 주소 만들기</button></form>
+    </div>
+
+    <div class="sec"><div><h2>계정</h2></div></div>
+    <div class="grid two">
+      <div class="card static">
+        <h3>표시 이름</h3>
+        <form class="auth-form" method="post" action="/me/name">
+          <label>이름<input name="name" value={user.name ?? ''} maxlength={60} autocomplete="name" /></label>
+          <button class="btn sm" type="submit">저장</button>
+        </form>
+      </div>
+      <div class="card static">
+        <h3>로그인</h3>
+        <p class="what">{user.email}</p>
+        <p class="what">{[user.password_hash && '비밀번호', user.google_sub && 'Google 연결됨'].filter(Boolean).join(' · ')}</p>
+        <form method="post" action="/me/logout-all"><button class="btn sm" type="submit">모든 기기에서 로그아웃</button></form>
+      </div>
+      <div class="card static danger">
+        <h3>탈퇴</h3>
+        <p class="what">관심 약관과 세션을 지우고 계정을 삭제합니다. 되돌릴 수 없습니다.</p>
+        <form class="auth-form" method="post" action="/me/delete">
+          <label class="check"><input type="checkbox" name="confirm" value="1" /> 정말 삭제합니다</label>
+          <button class="btn sm danger" type="submit">계정 삭제</button>
+        </form>
+      </div>
+    </div>
+  </>
 )
 
 export const AdminPage: FC<{ docs: DocumentRow[]; counts: Map<string, { n: number; oldest: string }>; users: number }> = ({ docs, counts, users }) => (

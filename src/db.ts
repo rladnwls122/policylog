@@ -155,13 +155,15 @@ export const weeklyViews = (env: Env, days = 7) => {
 // ── 회원·세션 (migrations/0004_users.sql) ────────────────────────
 export interface UserRow {
   id: string; email: string; name: string | null; picture: string | null; password_hash: string | null; google_sub: string | null
-  created_at: string; last_login_at: string | null
+  created_at: string; last_login_at: string | null; feed_key?: string | null
 }
 export interface SessionRow { id: string; user_id: string; created_at: string; expires_at: string; user_agent: string | null }
 
 export const findUserByEmail = (env: Env, email: string) => dbOf(env).first<UserRow>('SELECT * FROM users WHERE email = ?', [email])
 export const findUserByGoogleSub = (env: Env, sub: string) => dbOf(env).first<UserRow>('SELECT * FROM users WHERE google_sub = ?', [sub])
 export const getUser = (env: Env, id: string) => dbOf(env).first<UserRow>('SELECT * FROM users WHERE id = ?', [id])
+
+export const findUserByFeedKey = (env: Env, key: string) => dbOf(env).first<UserRow>('SELECT * FROM users WHERE feed_key = ?', [key])
 
 export async function insertUser(env: Env, u: UserRow) {
   await dbOf(env).run('INSERT INTO users (id, email, name, picture, password_hash, google_sub, created_at, last_login_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
@@ -185,3 +187,47 @@ export const sessionUser = (env: Env, sessionId: string, at: string) =>
 export const deleteSession = (env: Env, sessionId: string) => dbOf(env).run('DELETE FROM sessions WHERE id = ?', [sessionId])
 export const deleteExpiredSessions = (env: Env) => dbOf(env).run('DELETE FROM sessions WHERE expires_at <= ?', [now()])
 export const countUsers = (env: Env) => dbOf(env).first<{ n: number }>('SELECT COUNT(*) AS n FROM users').then((r) => r?.n ?? 0)
+
+export const deleteUserSessions = (env: Env, userId: string) => dbOf(env).run('DELETE FROM sessions WHERE user_id = ?', [userId])
+
+/** 탈퇴. 관심·세션·회원을 한 트랜잭션으로 지운다. 조회 집계에는 회원이 없으니 남는 것이 없다. */
+export const deleteUser = (env: Env, userId: string) => dbOf(env).batch([
+  stmt('DELETE FROM watches WHERE user_id = ?', userId),
+  stmt('DELETE FROM sessions WHERE user_id = ?', userId),
+  stmt('DELETE FROM users WHERE id = ?', userId),
+])
+
+// ── 관심 약관 (migrations/0005_watches.sql) ─────────────────────
+export const listWatched = (env: Env, userId: string) =>
+  dbOf(env).all<{ document_id: string }>('SELECT document_id FROM watches WHERE user_id = ? ORDER BY created_at DESC', [userId])
+    .then((r) => new Set(r.map((x) => x.document_id)))
+
+export const addWatch = (env: Env, userId: string, documentId: string) =>
+  dbOf(env).run('INSERT INTO watches (user_id, document_id, created_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING', [userId, documentId, now()])
+
+export const removeWatch = (env: Env, userId: string, documentId: string) =>
+  dbOf(env).run('DELETE FROM watches WHERE user_id = ? AND document_id = ?', [userId, documentId])
+
+/** 관심 문서들의 최근 변경. 개인 RSS 와 내 페이지가 쓴다. */
+export const watchedChanges = (env: Env, userId: string, limit = 30) =>
+  dbOf(env).all<ChangeListRow>(`${CHANGE_LIST} JOIN watches w ON w.document_id = c.document_id AND w.user_id = ?
+    WHERE d.publication_suppressed = 0 ORDER BY COALESCE(v.effective_at, substr(v.observed_at,1,10)) DESC, v.observed_at DESC LIMIT ?`, [userId, limit])
+
+/** 변경 기록 목록에 주제·중요도 거르기. categories 는 JSON 배열 문자열이라 따옴표째로 찾는다. */
+export const listChanges = (env: Env, f: { cat?: string; minImportance?: number; limit?: number } = {}) => {
+  const where = ['d.publication_suppressed = 0']
+  const params: unknown[] = []
+  if (f.cat) { where.push('c.categories LIKE ?'); params.push(`%"${f.cat}"%`) }
+  if (f.minImportance) { where.push('c.importance >= ?'); params.push(f.minImportance) }
+  params.push(f.limit ?? 100)
+  return dbOf(env).all<ChangeListRow>(`${CHANGE_LIST} WHERE ${where.join(' AND ')}
+    ORDER BY (c.suppressed_reason IS NULL) DESC, COALESCE(v.effective_at, substr(v.observed_at,1,10)) DESC LIMIT ?`, params)
+}
+
+// ── 로그인 시도 제한 ──────────────────────────────────────────
+export interface AttemptRow { key: string; window_start: string; n: number }
+export const getAttempt = (env: Env, key: string) => dbOf(env).first<AttemptRow>('SELECT * FROM login_attempts WHERE key = ?', [key])
+export const putAttempt = (env: Env, a: AttemptRow) =>
+  dbOf(env).run('INSERT INTO login_attempts (key, window_start, n) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET window_start = excluded.window_start, n = excluded.n', [a.key, a.window_start, a.n])
+export const clearAttempts = (env: Env, keys: string[]) => keys.length ? dbOf(env).batch(keys.map((k) => stmt('DELETE FROM login_attempts WHERE key = ?', k))) : Promise.resolve()
+export const purgeAttempts = (env: Env, before: string) => dbOf(env).run('DELETE FROM login_attempts WHERE window_start < ?', [before])

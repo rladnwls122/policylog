@@ -8,6 +8,8 @@ export interface Signals {
   counts: Map<string, { n: number; oldest: string }>
   /** 문서별 가장 최근 변경 */
   latest: Map<string, ChangeListRow>
+  /** 회원의 관심 문서 id. 비회원이면 없다 — 카드의 별이 로그인으로 간다 */
+  watched?: Set<string>
 }
 
 /** 변경의 날짜 키. 시행일이 있으면 시행일, 없으면 감지일. 변경이 없으면 빈 문자열이라 정렬에서 뒤로 간다. */

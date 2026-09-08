@@ -2,7 +2,8 @@
 // Google 로그인은 OpenID Connect 인가 코드 흐름 + PKCE 다. 이 파일의 fetch 는 Google 토큰 교환 하나뿐이고 호스트가 고정돼 있다
 // (수집용 fetch 는 acquire.ts 에만 있다 — test/policy.test.ts 가 둘 다 확인한다).
 import { sha256 } from './normalize'
-import { type Env, type UserRow, now, uid, findUserByEmail, findUserByGoogleSub, insertUser, updateUser, insertSession, sessionUser, deleteSession } from './db'
+import { type Env, type UserRow, now, uid, findUserByEmail, findUserByGoogleSub, insertUser, updateUser, insertSession, sessionUser, deleteSession,
+  getAttempt, putAttempt, clearAttempts } from './db'
 
 export const SESSION_COOKIE = 'pl_session'
 export const OAUTH_COOKIE = 'pl_oauth'
@@ -77,13 +78,47 @@ export async function joinWithEmail(env: Env, input: { email: string; password: 
   return { ok: true, user }
 }
 
-export async function loginWithEmail(env: Env, input: { email: string; password: string }): Promise<JoinResult> {
-  const user = await findUserByEmail(env, normalizeEmail(input.email ?? ''))
+// ── 로그인 시도 제한. 이메일과 IP 각각 15분에 10회. 비밀번호 추측을 느리게 만드는 것이 목적이라 값을 크게 잡지 않는다. ──
+export const ATTEMPT_LIMIT = 10
+export const ATTEMPT_WINDOW_MS = 15 * 60_000
+export const TOO_MANY = '시도가 너무 많습니다. 15분 뒤에 다시 해 주세요.'
+const attemptKeys = (email: string, ip: string | null) => [`email:${email}`, ...(ip ? [`ip:${ip}`] : [])]
+
+async function attemptsBlocked(env: Env, keys: string[]): Promise<boolean> {
+  for (const key of keys) {
+    const a = await getAttempt(env, key)
+    if (a && a.n >= ATTEMPT_LIMIT && Date.now() - Date.parse(a.window_start) < ATTEMPT_WINDOW_MS) return true
+  }
+  return false
+}
+async function recordFailure(env: Env, keys: string[]) {
+  for (const key of keys) {
+    const a = await getAttempt(env, key)
+    const fresh = !a || Date.now() - Date.parse(a.window_start) >= ATTEMPT_WINDOW_MS
+    await putAttempt(env, { key, window_start: fresh ? now() : a!.window_start, n: fresh ? 1 : a!.n + 1 })
+  }
+}
+
+export async function loginWithEmail(env: Env, input: { email: string; password: string }, ip: string | null = null): Promise<JoinResult> {
+  const email = normalizeEmail(input.email ?? '')
+  const keys = attemptKeys(email, ip)
+  if (await attemptsBlocked(env, keys)) return { ok: false, error: TOO_MANY }
+  const user = await findUserByEmail(env, email)
   // 계정이 없어도 해시를 한 번 계산해 응답 시간으로 가입 여부가 새지 않게 한다.
   const ok = await verifyPassword(input.password ?? '', user?.password_hash ?? (await hashPassword('x', 1000)))
-  if (!user || !ok) return { ok: false, error: '이메일 또는 비밀번호가 맞지 않습니다.' }
+  if (!user || !ok) { await recordFailure(env, keys); return { ok: false, error: '이메일 또는 비밀번호가 맞지 않습니다.' } }
   if (!user.password_hash) return { ok: false, error: '이 이메일은 Google 로 가입돼 있습니다. Google 로 계속하기를 눌러 주세요.' }
+  await clearAttempts(env, keys)
   return { ok: true, user }
+}
+
+/** 개인 RSS 키. 없으면 만들어 저장한다. 다시 만들면(rotate) 옛 주소는 그 자리에서 죽는다. */
+export async function ensureFeedKey(env: Env, user: UserRow, rotate = false): Promise<string> {
+  if (user.feed_key && !rotate) return user.feed_key
+  const key = randomToken(24)
+  await updateUser(env, user.id, { feed_key: key })
+  user.feed_key = key
+  return key
 }
 
 // ── Google (OpenID Connect + PKCE) ──────────────────────────────
