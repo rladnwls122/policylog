@@ -6,12 +6,10 @@
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
   "triggers": { "crons": ["17 18 * * *"] },
-  // Postgres via Hyperdrive. Create it once with
-  //   npx wrangler hyperdrive create policylog --connection-string="$DATABASE_URL"
-  // and paste the returned id here. Local dev connects directly with DATABASE_URL from .dev.vars (see .dev.vars.example),
-  // or use `wrangler dev --remote` to go through Hyperdrive. Tests run on an in-memory D1 (vitest.config.ts), same migrations.
-  "hyperdrive": [
-    { "binding": "HYPERDRIVE", "id": "REPLACE_WITH_HYPERDRIVE_ID" }
+  // 운영 저장소는 D1 이다 (src/sql.ts 는 DATABASE_URL → DB → HYPERDRIVE 순으로 고른다). Postgres 로 가려면 이 블록을
+  // hyperdrive 바인딩으로 바꾸고 `npx wrangler hyperdrive create policylog --connection-string="$DATABASE_URL"` 의 id 를 넣는다.
+  "d1_databases": [
+    { "binding": "DB", "database_name": "policylog", "database_id": "8e59d778-aa0f-4c19-8d28-6ff9be95647b", "migrations_dir": "migrations" }
   ],
   "r2_buckets": [
     { "binding": "RAW", "bucket_name": "policylog-raw" }
