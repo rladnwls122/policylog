@@ -1,7 +1,9 @@
 // 문서 카탈로그. 설정은 서비스 단위가 아니라 문서 단위다 (§19).
 // 차단·미수집 문서도 항목을 갖는다 — 카탈로그에 상태와 함께 표시되고, 절대 가져오지 않는다 (§2.7).
 //
-// 모든 항목은 2026-09-07 에 /admin/probe 로 실제로 재본 결과다. 추측한 URL 은 넣지 않는다.
+// 모든 항목은 /admin/probe 로 실제로 재본 결과다. 추측한 URL 은 넣지 않는다 — checkedAt 이 잰 날이다.
+// 2026-09-09 에 404 이거나 홈페이지만 적혀 있던 11건을 다시 찾았다. 9건은 실제 위치가 있었고, 남은 2건은
+// 로그인 뒤(네이버페이)이거나 robots 가 막는다(삼성카드).
 // 새 문서를 넣는 절차는 README 의 "카탈로그 넓히기" 를 따른다.
 
 export type DocType = 'TERMS' | 'PRIVACY'
@@ -66,6 +68,8 @@ export const isCollectible = (env: CollectEnv, doc: DocumentConfig) =>
     (doc.blocker === 'RENDER_REQUIRED' && !!env.BROWSER))
 
 const CHECKED = '2026-09-07'
+// 404 이거나 홈페이지만 적혀 있던 문서를 다시 찾아본 날. 이 날짜가 붙은 항목은 URL 을 새로 실측한 것이다.
+const RECHECKED = '2026-09-09'
 const IGNORE = ['nav', 'header', 'footer', 'aside', 'script', 'style', 'button', 'svg']
 
 // ── 수집 중 ────────────────────────────────────────────────────
@@ -164,6 +168,37 @@ const ACTIVE: DocumentConfig[] = [
     publicNote: '시행일자별 과거 20개 버전 목록이 페이지에 있으나 본문은 클라이언트에서만 불러옵니다. 현행 본문만 수집합니다.',
     checkedAt: CHECKED,
   },
+  // ↓ 2026-09-09 재조사. 아래 넷은 카탈로그의 URL 이 404 이거나 홈페이지만 적혀 있어 못 가져오던 문서다.
+  // 실제 위치를 찾아 /admin/probe 로 셀렉터까지 재고 옮겼다.
+  {
+    // 예전 URL(www.ssg.com/promotion/policyTerms.ssg)은 404 다. 약관은 회원 도메인에 있다.
+    id: 'ssg-terms', service: 'ssg', serviceName: 'SSG닷컴', type: 'TERMS', title: 'SSG닷컴 이용약관',
+    canonicalUrl: 'https://member.ssg.com/policies/terms.ssg', blocker: 'NONE',
+    extraction: { selector: 'div#content', ignore: IGNORE },
+    checkedAt: RECHECKED,
+  },
+  {
+    // 이마트몰은 SSG.COM 과 같은 이용약관을 쓴다. 몰 구분은 site 파라미터뿐이고 본문은 같다.
+    id: 'emart-terms', service: 'emart', serviceName: '이마트몰', type: 'TERMS', title: '이마트몰 이용약관',
+    canonicalUrl: 'https://member.ssg.com/policies/terms.ssg?site=small', blocker: 'NONE',
+    extraction: { selector: 'div#content', ignore: IGNORE },
+    publicNote: '이마트몰은 SSG.COM 이용약관을 함께 씁니다. 본문이 SSG닷컴 항목과 같습니다.',
+    checkedAt: RECHECKED,
+  },
+  {
+    // 예전 URL(wadiz.kr/web/waccount/policy/terms)은 404 다. 지금은 wterms 아래에 있고 도메인도 .io 로 넘어간다.
+    id: 'wadiz-terms', service: 'wadiz', serviceName: '와디즈', type: 'TERMS', title: '와디즈 이용약관',
+    canonicalUrl: 'https://www.wadiz.io/web/wterms/signup', blocker: 'NONE',
+    extraction: { selector: 'main', ignore: IGNORE },
+    checkedAt: RECHECKED,
+  },
+  {
+    // 예전 카탈로그에는 홈페이지만 적혀 있었다.
+    id: 'jobkorea-privacy', service: 'jobkorea', serviceName: '잡코리아', type: 'PRIVACY', title: '잡코리아 개인정보 처리방침',
+    canonicalUrl: 'https://www.jobkorea.co.kr/service/PolicyPrivacy', blocker: 'NONE',
+    extraction: { selector: 'div#content', ignore: IGNORE },
+    checkedAt: RECHECKED,
+  },
 ]
 
 // ── 렌더링 필요: robots 는 허용인데 HTTP 200 응답에 본문이 없다 (§84 RENDER_REQUIRED) ──
@@ -203,6 +238,12 @@ const RENDER: [string, string, DocType, string, string?][] = [
   ['oliveyoung', '올리브영', 'TERMS', 'https://www.oliveyoung.co.kr/store/main/getAgreement.do'],
   ['myrealtrip', '마이리얼트립', 'TERMS', 'https://www.myrealtrip.com/terms'],
   ['lguplus', 'LG유플러스', 'PRIVACY', 'https://privacy.lguplus.com/privacy/info/v1/1'],
+  // ↓ 2026-09-09 재조사. ABSENT 에 있던 문서인데 실제 위치를 찾으니 200 이었다. 다만 본문이 비어 있어 렌더링이 필요하다.
+  ['musinsa', '무신사', 'TERMS', 'https://www.musinsa.com/member/join/agreement/service'],
+  ['musinsa', '무신사', 'PRIVACY', 'https://www.musinsa.com/member/join/agreement/privacy-policy'],
+  ['kurly', '컬리', 'TERMS', 'https://www.kurly.com/user-terms/agreement'],
+  ['laftel', '라프텔', 'TERMS', 'https://policy.laftel.net/service/'],
+  ['lotteon', '롯데온', 'TERMS', 'https://www.lotteon.com/p/common/footerTerms?termsType=2'],
 ]
 
 // ── robots.txt 는 비허용인데 수집하는 문서 (§24.4) ─────────────
@@ -259,8 +300,12 @@ const ROBOTS_COLLECTED: DocumentConfig[] = [
 // 2026-09-07 재측정: 이전에 여기 있던 39건을 ROBOTS_MODE=ADVISORY 로 전부 실제로 가져와 봤다.
 // robots 를 넘고 나서 본문이 나온 건 7건뿐이고, 나머지는 애초에 robots 가 아니라 빈 DOM·404·403·
 // 네트워크 오류가 벽이었다. 7건은 ROBOTS_COLLECTED 로, 나머지는 실측 사유대로 RENDER·WAF_BLOCKED·
-// ABSENT 로 옮겼다. 그래서 이 목록은 지금 비어 있다 — robots 하나만 걸린 문서는 없다.
-const ROBOTS_BLOCKED: [string, string, DocType, string, string?][] = []
+// ABSENT 로 옮겼다. 2026-09-09 에 삼성카드 하나가 다시 들어왔다 — 문서 위치는 찾았는데 robots 가 막는다.
+const ROBOTS_BLOCKED: [string, string, DocType, string, string?][] = [
+  // 예전 카탈로그에는 홈페이지만 적혀 있었다. 실제 처리방침은 여기 있고 200 이지만 robots.txt 가 이 경로를 막는다.
+  // ADVISORY 로 본문을 재봐도 div#content·div#container 가 비어 있어 셀렉터를 아직 잡지 못했다.
+  ['samsungcard', '삼성카드', 'PRIVACY', 'https://www.samsungcard.com/personal/customer-service/privacy/UHPPCC0378M0.jsp', 'robots.txt 가 이 경로를 차단합니다'],
+]
 
 // ── 봇 차단(WAF) 또는 403 (§84 WAF) ────────────────────────────
 const WAF_BLOCKED: [string, string, DocType, string, string][] = [
@@ -288,18 +333,9 @@ const WAF_BLOCKED: [string, string, DocType, string, string][] = [
 
 // ── 웹에서 문서를 찾지 못함 (§84 DOCUMENT_ABSENT) ──────────────
 const ABSENT: [string, string, DocType, string, string][] = [
-  ['kurly', '컬리', 'TERMS', 'https://www.kurly.com/', '홈페이지에서 약관 링크를 찾지 못했고 흔한 경로는 404 입니다'],
-  ['jobkorea', '잡코리아', 'PRIVACY', 'https://www.jobkorea.co.kr/', '홈페이지에서 처리방침 링크를 찾지 못했습니다'],
-  ['laftel', '라프텔', 'TERMS', 'https://laftel.net/', '홈페이지에서 약관 링크를 찾지 못했습니다'],
-  // ↓ 이전에 ROBOTS 로 분류돼 있던 문서. robots 때문에 URL 을 한 번도 확인하지 못했고, 실제로 재보니 404 였다.
-  ['musinsa', '무신사', 'TERMS', 'https://www.musinsa.com/member/termsOfUse', '카탈로그의 URL 이 404 입니다. 실제 위치를 확인하지 못했습니다'],
-  ['musinsa', '무신사', 'PRIVACY', 'https://www.musinsa.com/member/privacy', '카탈로그의 URL 이 404 입니다. 실제 위치를 확인하지 못했습니다'],
-  ['ssg', 'SSG닷컴', 'TERMS', 'https://www.ssg.com/promotion/policyTerms.ssg', '카탈로그의 URL 이 404 입니다. 실제 위치를 확인하지 못했습니다'],
-  ['emart', '이마트몰', 'TERMS', 'https://emart.ssg.com/policy/terms.ssg', '카탈로그의 URL 이 404 입니다. 실제 위치를 확인하지 못했습니다'],
-  ['lotteon', '롯데온', 'TERMS', 'https://www.lotteon.com/p/display/main/policy', '카탈로그의 URL 이 404 입니다. 실제 위치를 확인하지 못했습니다'],
-  ['wadiz', '와디즈', 'TERMS', 'https://www.wadiz.kr/web/waccount/policy/terms', '카탈로그의 URL 이 404 입니다. 실제 위치를 확인하지 못했습니다'],
-  ['naverpay', '네이버페이', 'TERMS', 'https://nid.naver.com/user2/help/agree', '카탈로그의 URL 이 404 입니다. 실제 위치를 확인하지 못했습니다'],
-  ['samsungcard', '삼성카드', 'PRIVACY', 'https://www.samsungcard.com/', '홈페이지 본문이 비어 있어 문서 위치를 확인하지 못했습니다'],
+  // 2026-09-09 재조사: 여기 있던 열한 건 중 아홉 건은 실제 위치를 찾아 ACTIVE·RENDER·ROBOTS_COLLECTED 로 옮겼다.
+  // 남은 하나는 문서가 공개된 곳에 없다.
+  ['naverpay', '네이버페이', 'TERMS', 'https://new-m.pay.naver.com/policy/terms', '약관 페이지가 네이버 로그인 뒤에 있어 공개 URL 로는 열리지 않습니다'],
 ]
 
 const title = (name: string, type: DocType) => `${name} ${type === 'TERMS' ? '이용약관' : '개인정보 처리방침'}`

@@ -15,18 +15,18 @@ Cloudflare 로 유통하므로 저장소만 빼고 전부 Cloudflare 원시 기�
 | Redis + BullMQ | Cron Trigger | 큐가 필요할 만큼 작업이 많지 않다 |
 | S3 | R2 (비공개 버킷) | 원본 스냅샷 보관 |
 | Cheerio | HTMLRewriter | 런타임 내장. 스트리밍 파서라 의존성 0 |
-| Playwright | 없음 | 지금 수집하는 8건은 모두 정적이다. 렌더링은 §85 대상 |
+| Playwright | 없음 | 지금 수집하는 20건은 모두 정적이다. 렌더링은 §85 대상 |
 | OpenSearch | 없음 | — |
 
 의존성은 `hono`·`diff`·`pg` 와 렌더링 수집용 `@cloudflare/puppeteer` 넷이다.
 
-## 지금 상태 (2026-09-07 실측)
+## 지금 상태 (2026-09-07 실측 · 2026-09-09 재조사)
 
 수집 결과는 아래와 같고, 저장소는 PostgreSQL 이다 (아래 "저장소").
 
-로컬 워커를 실제 사이트에 붙여 수집한 결과다. 목업 없음. 문서 79건 중 **수집 중 16, 렌더링 대기 33, 수집 불가 30** 이다.
+로컬 워커를 실제 사이트에 붙여 수집한 결과다. 목업 없음. 문서 79건 중 **수집 중 20, 렌더링 대기 38, 수집 불가 21** 이다 (2026-09-09 재조사 반영).
 
-수집 중 16건 가운데 7건은 robots.txt 가 비허용인 경로다 (§24.4). 카탈로그에 `robots 비허용 · 수집 중` 으로 표시된다.
+수집 중 20건 가운데 7건은 robots.txt 가 비허용인 경로다 (§24.4). 카탈로그에 `robots 비허용 · 수집 중` 으로 표시된다.
 
 | 문서 | 버전 | 가장 오래된 | 이력 하베스터 | robots |
 |---|---|---|---|---|
@@ -59,7 +59,7 @@ Cloudflare 로 유통하므로 저장소만 빼고 전부 Cloudflare 원시 기�
 
 멜론이 그 반대 사례다. 약관은 `melon.com` 이 아니라 `info.melon.com` 에 있고 그 호스트의 robots.txt 는 허용인데, 홈페이지 URL 로 판정해 놓아 "robots 차단" 으로 잘못 분류돼 있었다. 지금은 정상 수집한다.
 
-그래서 남은 판돈은 robots 가 아니라 **렌더링 33건** 이다. 그쪽에 Browser Rendering 을 붙였다 (§85).
+그래서 남은 판돈은 robots 가 아니라 **렌더링 38건** 이다. 그쪽에 Browser Rendering 을 붙였다 (§85).
 
 ### 카탈로그 넓히기
 
@@ -82,7 +82,7 @@ node tools/survey.mjs --blocker=WAF
 측정에서 배운 것:
 
 - **robots 는 생각보다 작은 벽이었다.** 넘어보니 39건 중 8건. 대부분의 차단은 `Disallow: /policy` 같은 경로 전체 규칙이거나 `User-agent: *` 포괄 규칙이지, 약관 문서를 겨냥한 게 아니다.
-- **JS 렌더링이 진짜 벽이다.** 33건. 정적 fetch 로는 방법이 없어 Browser Rendering 을 붙였다(§85). 배달의민족·티빙·웨이브·교보문고·CGV·하나은행·YES24·업비트 등.
+- **JS 렌더링이 진짜 벽이다.** 38건. 정적 fetch 로는 방법이 없어 Browser Rendering 을 붙였다(§85). 배달의민족·티빙·웨이브·교보문고·CGV·하나은행·YES24·업비트 등.
 - **봇 차단(403·타임아웃·TLS 끊김)이 그다음 19건.** 여기는 붙이지 않는다 — 아래 규칙 참조.
 - **약관은 다른 호스트에 있는 경우가 많다.** 리디는 현행이 `ridibooks.com`, 과거 버전이 `policy.ridi.com` 이다. 쏘카는 zendesk 고객센터에 있다. 여기어때는 `goodchoice.kr` 에서 `yeogi.com` 으로 넘어간다. 그래서 실제로 가져올 모든 호스트를 각각 robots 판정한다.
 - **규제 업종이 더 닫혀 있다.** 은행·카드·항공은 대부분 차단이거나 빈 DOM 이다. 설계서 §51.5 가 예측한 그대로다.
@@ -162,7 +162,7 @@ curl -u admin:devpassword -X POST http://127.0.0.1:8788/admin/run
 ## 테스트
 
 ```bash
-npm test          # 실제 워커 런타임(workerd)에서 139개. 저장소는 miniflare 의 D1 이고 마이그레이션은 운영과 같은 파일이다
+npm test          # 실제 워커 런타임(workerd)에서 138개. 저장소는 miniflare 의 D1 이고 마이그레이션은 운영과 같은 파일이다
 npx tsc --noEmit
 ```
 
@@ -251,7 +251,7 @@ tools/
 
 ## 렌더링 수집 (§85)
 
-정적 fetch 로 본문이 안 나오는 33건을 위해 Cloudflare Browser Rendering 을 붙였다. 헤드리스 크롬을 직접 다루지 않고 `@cloudflare/puppeteer` 를 그대로 쓴다 — 의존성이 셋으로 늘었다.
+정적 fetch 로 본문이 안 나오는 38건을 위해 Cloudflare Browser Rendering 을 붙였다. 헤드리스 크롬을 직접 다루지 않고 `@cloudflare/puppeteer` 를 그대로 쓴다 — 의존성이 셋으로 늘었다.
 
 - `wrangler.jsonc` 의 `browser` 바인딩이 있으면 `blocker: 'RENDER_REQUIRED'` 이면서 셀렉터가 실측된 문서가 열린다. 바인딩이 없으면(무료 플랜·로컬 dev) 전부 `수집 준비 중` 인 채로 정적 수집만 돈다.
 - 셀렉터를 재려면 `--render` 를 붙인다: `node tools/survey.mjs --blocker=RENDER_REQUIRED --render`
@@ -261,12 +261,12 @@ tools/
 
 ## 다음
 
-- **배포 (2026-09-09 완료)** — https://policylog.kryukihide2009.workers.dev 에서 돈다. 저장소는 Aiven PostgreSQL 이고 워커는 Hyperdrive 바인딩으로 붙는다. R2 `policylog-raw`, Browser Rendering 바인딩, 크론 `17 18 * * *` 이 모두 붙어 있다. 카탈로그 79건 중 16건을 수집했고, 같은 실행을 두 번 돌려도 `created: 0`(전부 `UNCHANGED`) 이다.
+- **배포 (2026-09-09 완료)** — https://policylog.kryukihide2009.workers.dev 에서 돈다. 저장소는 Aiven PostgreSQL 이고 워커는 Hyperdrive 바인딩으로 붙는다. R2 `policylog-raw`, Browser Rendering 바인딩, 크론 `17 18 * * *` 이 모두 붙어 있다. 카탈로그 79건 중 20건을 수집했고, 같은 실행을 두 번 돌려도 `created: 0`(전부 `UNCHANGED`) 이다.
   - 남은 것: Google OAuth 리디렉션 URI `https://policylog.kryukihide2009.workers.dev/auth/google/callback` 등록 뒤 `GOOGLE_CLIENT_ID`(vars)·`GOOGLE_CLIENT_SECRET`(secret), 알림 메일용 `RESEND_API_KEY`·`MAIL_FROM`, 그리고 공개용 `CONTACT_EMAIL`.
   - wrangler 는 Node 22+ 가 필요하다. `nvm use 24.12.0`.
-- 렌더링 셀렉터 실측 — 위 33건. 바인딩을 켜고 `--render` 서베이를 돌린다.
+- 렌더링 셀렉터 실측 — 위 38건. 바인딩을 켜고 `--render` 서베이를 돌린다.
 - 이메일 알림(§78 M2) — 계정 없이 주소만으로 구독. 지금은 RSS 만 있다.
 - 공개 요청(§83) — 403 으로 막힌 19건에 대해 User-Agent 단위 허용 요청. robots 쪽은 §24.4 로 대체됐다.
-- 404 8건의 실제 URL 찾기 — `tools/discover.mjs` 가 이제 robots 비허용 호스트에서도 링크를 돌려준다.
+- **404·홈페이지뿐이던 11건 재조사 (2026-09-09 완료)** — 9건은 실제 위치가 있었다. SSG닷컴·이마트몰·와디즈·잡코리아 넷은 셀렉터까지 재서 수집을 시작했고, 무신사(약관·처리방침)·컬리·라프텔·롯데온 다섯은 URL 은 200 인데 본문이 JS 라 렌더링 대기로 옮겼다. 삼성카드는 문서를 찾았지만 robots 가 막고, 네이버페이는 약관이 로그인 뒤에 있다.
 - 이력 공개 관측(§75) — "이 서비스는 과거 버전을 공개하는가" 를 표로 만든다.
 - 이력 하베스터 확장 — 멜론(20건)·메가박스(13건)·카카오는 과거 버전 목록이 있지만 본문을 JS 로 불러온다. 지금의 `DIRECTORY_INDEX`/`LINK_LIST` 로는 못 잡는다.
