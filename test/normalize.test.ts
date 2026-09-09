@@ -101,3 +101,68 @@ describe('달력에 없는 날짜 (§69)', () => {
     expect(extractDates('이 약관은 2026년 2월 28일부터 시행합니다.').effectiveAt).toBe('2026-02-28')
   })
 })
+
+describe('조문 분할 (§68)', () => {
+  it('목차는 조문으로 세지 않는다 — 뒤에 같은 번호가 본문과 함께 나오면 앞은 목차다', () => {
+    const s = sectionsOf('제1조 목적\n제2조 정의\n제1조 (목적)\n이 약관은 …\n제2조 (정의)\n용어의 뜻은 …')
+    expect(s.map((x) => x.identifier)).toEqual(['제1조', '제2조'])
+    expect(s[0].content).toBe('이 약관은 …')
+  })
+  it('장 머리는 본문이 없어도 남는다 — 한 번만 나오기 때문이다', () => {
+    const s = sectionsOf('제1장 총칙\n제1조 (목적)\n이 약관은 …')
+    expect(s.map((x) => x.identifier)).toEqual(['제1장', '제1조'])
+    expect(s[0].content).toBe('')
+  })
+  it('표 안의 법적 근거 인용은 조문 머리가 아니다', () => {
+    const s = sectionsOf('제1조 (목적)\n이 방침은 …\n제15조 제1항 제4호\n회원가입\n제15조 제1항 제4호\n정보수정')
+    expect(s).toHaveLength(1)
+    expect(s[0].identifier).toBe('제1조')
+    expect(s[0].content).toContain('회원가입')
+  })
+  it('제N조 를 안 쓰는 문서는 번호 매김을 조문으로 친다 (카카오·야놀자)', () => {
+    const s = sectionsOf('1. 개인정보 수집\n회사는 …\n2. 개인정보 이용\n수집한 정보는 …')
+    expect(s.map((x) => x.identifier)).toEqual(['1.', '2.'])
+    expect(s[1].title).toBe('개인정보 이용')
+  })
+  it('조로 짜인 문서에서는 본문의 번호 목록을 조문으로 세지 않는다', () => {
+    const s = sectionsOf('제1조 (목적)\n1. 회사는 다음 각 호를 …\n2. 이용자는 …\n제2조 (정의)\n용어의 뜻은 …\n제3조 (효력)\n이 약관은 …')
+    expect(s.map((x) => x.identifier)).toEqual(['제1조', '제2조', '제3조'])
+    expect(s[0].content).toContain('2. 이용자는 …')
+  })
+  it('"3개월" 처럼 숫자에 바로 붙은 말은 머리가 아니다', () => {
+    const s = sectionsOf('1. 보유기간\n3개월 이내에 파기합니다.')
+    expect(s).toHaveLength(1)
+    expect(s[0].content).toBe('3개월 이내에 파기합니다.')
+  })
+})
+
+describe('번호 매김 조문 (§68)', () => {
+  it('조문을 한 줄 인용했다고 번호 모드가 꺼지지 않는다', () => {
+    const s = sectionsOf('1. 개인정보 수집\n개인정보 보호법 제15조에 따라 …\n2. 개인정보 이용\n수집한 정보는 …')
+    expect(s.map((x) => x.identifier)).toEqual(['1.', '2.'])
+  })
+  it('번호로 시작해도 문장이면 조문 머리가 아니다', () => {
+    const s = sectionsOf('1. 보유기간\n2. 회사는 다음 각 호에 해당하는 신청에 대하여는 승낙을 하지 않을 수 있습니다.')
+    expect(s).toHaveLength(1)
+    expect(s[0].title).toBe('보유기간')
+  })
+})
+
+describe('표에서 줄이 나뉜 인용 (§68)', () => {
+  it('조 번호와 항·호가 다른 칸이면 조문 머리가 아니다', () => {
+    const s = sectionsOf('제1조 (목적)\n이 방침은 …\n제2조 (정의)\n용어는 …\n제3조 (수집)\n다음과 같다\n제28조의8\n제1항제3호\n이름, 이메일\n제28조의8\n제1항제3호\n이력서')
+    expect(s.map((x) => x.identifier)).toEqual(['제1조', '제2조', '제3조'])
+    expect(s.at(-1)!.content).toContain('이력서')
+  })
+})
+
+describe('목차가 본문 뒤에 오는 문서 (§68)', () => {
+  it('앞이든 뒤든 본문 있는 같은 번호가 있으면 빈 것은 목차다', () => {
+    const s = sectionsOf('제1조 (목적)\n이 약관은 …\n제2조 (정의)\n용어는 …\n제1조 목적\n제2조 정의')
+    expect(s.map((x) => x.identifier)).toEqual(['제1조', '제2조'])
+    expect(s.every((x) => x.content)).toBe(true)
+  })
+  it('번호 뒤 구분점은 제목에서 뗀다 (메가박스)', () => {
+    expect(sectionsOf('제1조. 목적\n본 약관은 …')[0].title).toBe('목적')
+  })
+})

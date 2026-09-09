@@ -106,20 +106,49 @@ export const yyyymmdd = (k: string) => toIso(k.slice(0, 4), k.slice(4, 6), k.sli
 // ── 조문 분할 (§68) ─────────────────────────────────────────────
 export interface Section { identifier: string; title: string; content: string }
 
-// 경계: 제N조 / 제 N 조 / 제N장 / 부칙 / "01 제목" 식 번호 제목(당근)
-const HEAD = /^(제\s*\d+\s*(?:조|장)(?:의\s*\d+)?|부\s*칙|\d{1,2}(?=\s+[가-힣]))\s*(.*)$/
+// 경계: 제N조 / 제 N 조 / 제N조의2 / 제N장 / 부칙
+const ARTICLE = /^(제\s*\d+\s*(?:조|장)(?:의\s*\d+)?|부\s*칙)\s*(.*)$/
+// "1. 개인정보 수집", "01 목적", "2) 이용" 식 번호 제목. 숫자 뒤에 공백이 있어야 한다 — "3개월" 은 걸리지 않는다.
+// 제목이지 문장이 아니어야 한다: 짧고, 마침표로 끝나지 않는다. "1. 회사는 … 수 있습니다." 는 본문이다.
+const NUMBERED = /^(\d{1,2}[.)]?)\s+([가-힣][^.]{0,34})$/
+
+/**
+ * 조문 인용인가. 개인정보 처리방침의 수집 항목 표는 행마다 법적 근거 열이 "제15조 제1항 제4호" 로 시작한다.
+ * 표를 줄로 펴면 그 줄이 조문 머리처럼 보인다 — 잡코리아 한 문서에서만 56줄이 그랬다.
+ * 조문 머리의 제목은 "(목적)" 이지 "제1항 제4호" 가 아니다.
+ */
+const isCitation = (title: string) => /^제?\s*\d+\s*항/.test(title)
 
 export function sectionsOf(text: string): Section[] {
+  const lines = text.split('\n')
+  /** 이 줄이 조문 머리인가. 표에서는 조 번호와 항·호가 다른 칸이라 줄이 나뉜다 — 제목 자리가 비면 다음 줄로 본다. */
+  const article = (i: number) => {
+    const line = lines[i]
+    if (line.length >= 80) return null
+    const m = line.match(ARTICLE)
+    return m && !isCitation(m[2] || lines[i + 1] || '') ? m : null
+  }
+  // 제N조 로 짜인 문서가 아니면 번호 매김을 조문 머리로 친다 (카카오·야놀자는 "1. 개인정보 수집" 으로 쓴다).
+  // "하나도 없을 때" 로 하면 본문에 조문을 한 줄 인용한 문서까지 번호 모드가 꺼진다 (사람인 처리방침이 그랬다).
+  // 조로 짜인 문서는 조가 여럿이므로 셋을 넘는지로 가른다.
+  const numbered = lines.filter((_, i) => article(i)).length < 3
+
   const out: Section[] = []
   let cur: Section | null = null
-  for (const line of text.split('\n')) {
-    const m = line.match(HEAD)
-    if (m && line.length < 80) {
+  for (const [i, line] of lines.entries()) {
+    const m = article(i) ?? (numbered && line.length < 80 ? line.match(NUMBERED) : null)
+    if (m) {
       if (cur) out.push(cur)
-      cur = { identifier: m[1].replace(/\s+/g, ''), title: m[2].trim(), content: '' }
+      // "제1조. 목적" 처럼 번호 뒤에 구분점을 찍는 문서가 있다 (메가박스). 제목에서 그 점을 뗀다.
+      cur = { identifier: m[1].replace(/\s+/g, ''), title: m[2].trim().replace(/^[.)·:\-]\s*/, ''), content: '' }
     } else if (cur && !cur.title && !cur.content && line.length < 60) cur.title = line // 번호와 제목이 다른 줄인 경우 (당근)
     else if (cur) cur.content += (cur.content ? '\n' : '') + line
   }
   if (cur) out.push(cur)
-  return out
+
+  // 목차. 본문 없는 머리가 같은 번호로 본문과 함께 또 나오면 그것은 목차다 — 문서 앞머리의 조문 목록이
+  // 통째로 빈 조문이 되어 있었다 (SSG 199개 중 99개). 목차가 본문 뒤에 붙는 문서도 있어 앞뒤를 다 본다.
+  // 장 머리는 한 번만 나오므로 그대로 남는다.
+  // 같은 번호가 본문과 함께 어디든 또 있으면 목차이고, 본문 없이 뒤에 또 있어도 앞의 것이 목차다 (장 머리가 그렇다).
+  return out.filter((s, i) => s.content || !out.some((o, j) => o.identifier === s.identifier && (j > i || o.content)))
 }
