@@ -178,6 +178,12 @@ export async function harvest(env: Env, doc: DocumentConfig): Promise<Historical
   return refs
 }
 
+/** 유니크 제약에 걸렸는가. Postgres 는 23505, SQLite(D1) 는 문구로 알린다. */
+const isDuplicate = (e: unknown) => {
+  const code = (e as { code?: string }).code
+  return code === '23505' || /UNIQUE constraint failed|duplicate key/i.test(String(e))
+}
+
 // ── 한 번의 캡처 ─────────────────────────────────────────────
 export interface CaptureResult { created: boolean; versionId?: string; reason?: string; hash?: string }
 
@@ -222,7 +228,14 @@ export async function capture(env: Env, doc: DocumentConfig, opts: { url: string
     metadata: JSON.stringify({ title: extracted.title, finalUrl, versionKey: opts.versionKey, versionKeySource: opts.effectiveAt ? 'HISTORY_LABEL' : dates.effectiveAt ? 'IN_TEXT' : 'NONE', dates: dates.all.slice(0, 20), tables: extracted.tables, sectionCount: sectionsOf(text).length }),
     created_at: observedAt,
   }
-  await insertVersion(env, v)
+  try {
+    await insertVersion(env, v)
+  } catch (e) {
+    // 위의 중복 검사는 읽기라서 Hyperdrive 가 캐시한 옛 답을 볼 수 있다 — 방금 넣은 버전을 "없다" 고 답한다.
+    // 진짜 판단 기준은 (문서, 프로필, 해시) 유니크 제약이다. 걸렸다면 같은 내용이 이미 있다는 뜻이므로 UNCHANGED 다.
+    if (isDuplicate(e)) return { created: false, reason: 'UNCHANGED', hash }
+    throw e
+  }
   if (opts.publishGate) await updateDocument(env, doc.id, { pending_hash: null })
   return { created: true, versionId: id, hash }
 }

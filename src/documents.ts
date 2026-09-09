@@ -77,10 +77,80 @@ export const isCollectible = (env: CollectEnv, doc: DocumentConfig) =>
 const CHECKED = '2026-09-07'
 // 404 이거나 홈페이지만 적혀 있던 문서를 다시 찾아본 날. 이 날짜가 붙은 항목은 URL 을 새로 실측한 것이다.
 const RECHECKED = '2026-09-09'
+// 중소기업으로 대상을 바꾸고 새로 넣은 날.
+const ADDED = '2026-09-10'
 const IGNORE = ['nav', 'header', 'footer', 'aside', 'script', 'style', 'button', 'svg']
 
 // ── 수집 중 ────────────────────────────────────────────────────
+// 2026-09-10 에 넣은 열둘. 고른 기준은 "감시가 덜하면서 소비자 분쟁이 실제로 터지는 업종" 이다 —
+// P2P·유사투자자문·결제, 화물·이사, 게임 아이템 거래, 강의 구독, 호스팅·쇼핑몰 빌더.
+// 전부 /admin/probe 로 셀렉터를 재고 넣었다. robots 는 넣을 때 모두 ALLOWED 였다.
 const ACTIVE: DocumentConfig[] = [
+  {
+    id: 'thinkpool-privacy', service: 'thinkpool', serviceName: '씽크풀', type: 'PRIVACY', title: '씽크풀 개인정보 처리방침',
+    canonicalUrl: 'https://www.thinkpool.com/policy/privacy', blocker: 'NONE',
+    extraction: { selector: 'article', ignore: IGNORE }, checkedAt: ADDED,
+  },
+  {
+    id: 'payapp-privacy', service: 'payapp', serviceName: '페이앱', type: 'PRIVACY', title: '페이앱 개인정보 처리방침',
+    canonicalUrl: 'https://www.payapp.kr/homepage/udidTerms/payapp_privacy.html', blocker: 'NONE',
+    extraction: { selector: 'article', ignore: IGNORE }, checkedAt: ADDED,
+  },
+  {
+    id: 'hwamulman-terms', service: 'hwamulman', serviceName: '화물맨', type: 'TERMS', title: '화물맨 이용약관',
+    canonicalUrl: 'https://www.2424-2424.com/agreement01.html', blocker: 'NONE',
+    extraction: { selector: 'div#content', ignore: IGNORE }, checkedAt: ADDED,
+  },
+  {
+    id: 'onecall-privacy', service: 'onecall', serviceName: '원콜', type: 'PRIVACY', title: '원콜 개인정보 처리방침',
+    canonicalUrl: 'https://www.15881063.co.kr/Membership/PrivacyPolicy', blocker: 'NONE',
+    // 페이지에 본문을 감싸는 컨테이너가 없다. 본문이 body 안에 서버 렌더링되어 들어온다.
+    extraction: { selector: 'body', ignore: IGNORE }, checkedAt: ADDED,
+  },
+  {
+    id: 'elancer-privacy', service: 'elancer', serviceName: '이랜서', type: 'PRIVACY', title: '이랜서 개인정보 처리방침',
+    canonicalUrl: 'https://www.elancer.co.kr/policy', blocker: 'NONE',
+    extraction: { selector: 'body', ignore: IGNORE }, checkedAt: ADDED,
+  },
+  {
+    id: 'hostingkr-privacy', service: 'hostingkr', serviceName: '호스팅케이알', type: 'PRIVACY', title: '호스팅케이알 개인정보 처리방침',
+    canonicalUrl: 'https://www.hosting.kr/servlet/html?pgm_id=HOSTING000050', blocker: 'NONE',
+    extraction: { selector: 'body', ignore: IGNORE },
+    publicNote: '페이지에 과거 개정본 링크가 남아 있습니다. 이력 하베스터는 아직 붙이지 않았습니다.',
+    checkedAt: ADDED,
+  },
+  {
+    id: 'sixshop-privacy', service: 'sixshop', serviceName: '식스샵', type: 'PRIVACY', title: '식스샵 개인정보 처리방침',
+    canonicalUrl: 'https://www.sixshop.com/privacy', blocker: 'NONE',
+    extraction: { selector: 'main', ignore: IGNORE }, checkedAt: ADDED,
+  },
+  {
+    id: 'itembay-privacy', service: 'itembay', serviceName: '아이템베이', type: 'PRIVACY', title: '아이템베이 개인정보 처리방침',
+    canonicalUrl: 'https://www.itembay.com/member/terms/protectionContents', blocker: 'NONE',
+    extraction: { selector: 'body', ignore: IGNORE },
+    publicNote: '시행일자별 과거 개정본 42개가 페이지에 있습니다. 이력 하베스터는 아직 붙이지 않았습니다.',
+    checkedAt: ADDED,
+  },
+  {
+    id: 'airklass-privacy', service: 'airklass', serviceName: '에어클래스', type: 'PRIVACY', title: '에어클래스 개인정보 처리방침',
+    canonicalUrl: 'https://www.airklass.com/privacy', blocker: 'NONE',
+    extraction: { selector: 'body', ignore: IGNORE }, checkedAt: ADDED,
+  },
+  {
+    id: 'taling-privacy', service: 'taling', serviceName: '탈잉', type: 'PRIVACY', title: '탈잉 개인정보 처리방침',
+    canonicalUrl: 'https://talingrules.oopy.io/privacy', blocker: 'NONE',
+    extraction: { selector: 'body', ignore: IGNORE }, checkedAt: ADDED,
+  },
+  {
+    id: 'studypie-privacy', service: 'studypie', serviceName: '스터디파이', type: 'PRIVACY', title: '스터디파이 개인정보 처리방침',
+    canonicalUrl: 'https://studypie.co/agreement/privacy_policy', blocker: 'NONE',
+    extraction: { selector: 'main', ignore: IGNORE }, checkedAt: ADDED,
+  },
+  {
+    id: 'codeit-privacy', service: 'codeit', serviceName: '코드잇', type: 'PRIVACY', title: '코드잇 개인정보 처리방침',
+    canonicalUrl: 'https://www.codeit.kr/terms/PRIVACY_POLICY', blocker: 'NONE',
+    extraction: { selector: 'main', ignore: IGNORE }, checkedAt: ADDED,
+  },
 ]
 
 // ── 렌더링 필요: robots 는 허용인데 HTTP 200 응답에 본문이 없다 (§84 RENDER_REQUIRED) ──
