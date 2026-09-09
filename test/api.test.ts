@@ -6,7 +6,7 @@ import daangnPrev from './fixtures/daangn-privacy-20260327.html?raw'
 import { extract } from '../src/extract'
 import { normalize, sha256, NORMALIZATION_PROFILE, PARSER_VERSION } from '../src/normalize'
 import { byId } from '../src/documents'
-import { syncDocuments, insertVersion, listVersions, latestVersion, findVersionByHash, getChange, type Env } from '../src/db'
+import { syncDocuments, insertVersion, listVersions, latestVersion, latestVersionGate, findVersionByHash, getChange, type Env } from '../src/db'
 import { createChange, rebuildChanges } from '../src/acquire'
 
 const cfg = byId('daangn-privacy')!
@@ -164,5 +164,17 @@ describe('createChange 멱등성', () => {
     expect(n!.n).toBe(1)
     // 돌려준 id 로 행을 실제로 읽을 수 있어야 한다 — poll 이 이 id 로 알림 메일을 만든다.
     expect(await getChange(E, again)).not.toBeNull()
+  })
+})
+
+describe('게이트용 직전 버전 조회', () => {
+  it('본문을 통째로 끌어오지 않고 길이와 앞부분만 준다', async () => {
+    const full = (await latestVersion(E, cfg.id))!
+    const g = (await latestVersionGate(E, cfg.id))!
+    expect(g.id).toBe(full.id)
+    expect(g.effective_at).toBe(full.effective_at)
+    expect(g.len).toBe(full.normalized_text.length)
+    expect(g.head).toBe(full.normalized_text.slice(0, 4000))
+    expect(g.head.length).toBeLessThan(full.normalized_text.length)
   })
 })

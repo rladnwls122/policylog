@@ -23,9 +23,11 @@ import { LOGOS } from './documents'
 // 상태 점(수집 중·준비 중·못 가져옴)은 작은 점 하나로만 색을 쓴다.
 //
 // 한글 규칙은 그대로다: line-height 1.05 아래로 내리지 않고, 대문자·자간 라벨은 라틴과 숫자에만 준다.
-// 서체 세 벌. 본문·UI 는 Pretendard(가변, 동적 서브셋 — 쓰는 글자 범위만 받는다), 표제는 Noto Serif KR —
+// 서체 네 벌. 본문·UI 는 Pretendard(가변, 동적 서브셋 — 쓰는 글자 범위만 받는다), 표제는 Noto Serif KR —
 // 약관과 시행일을 다루는 기록물이라 표제에 명조의 무게를 준다 — 숫자·날짜·라벨은 JetBrains Mono.
 // 셋 다 unicode-range 로 쪼개져 있어 화면 하나가 받는 양은 수십 KB 다. 시스템 서체(Malgun Gothic)로 떨어지는 일은 없다.
+// 네 번째는 보존한 약관 본문에만 쓰는 부크크명조다. 이 한 벌은 쪼개져 있지 않아 900KB 대라, 조문이 실제로
+// 놓이는 화면(.art)에서만 걸어 둔다 — 첫 화면과 목록은 이 서체를 요청조차 하지 않는다.
 //
 // 움직임: 화면 이동은 문서 간 View Transition(지원 브라우저) 이고, 아니면 main 이 떠오른다.
 // 카드는 들어올 때 순서대로 떠오르고, 올리면 살짝 뜨고, 누르면 가라앉는다. prefers-reduced-motion 이면 전부 끈다.
@@ -54,6 +56,8 @@ const CSS = `
   --ok:#2E9E63;--warn:#D9962B;--stop:#9AA3B1;
   --del:#F7D7D2;--del-ink:#8A1F14;--ins:#D0E9D7;--ins-ink:#0F4A28;
   --display:'Noto Serif KR','Apple SD Gothic Neo',serif;
+  /* 약관 본문 전용. 화면 나머지는 Pretendard 그대로다 (아래 @font-face). */
+  --doc:'Bookk Myungjo','Noto Serif KR','Apple SD Gothic Neo',serif;
   --body:'Pretendard Variable',Pretendard,'Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif;
   --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
   --r:22px;--r-sm:14px;--pill:999px;
@@ -101,6 +105,14 @@ a:focus-visible,button:focus-visible,input:focus-visible,summary:focus-visible{o
 .eyebrow{font-family:var(--body);font-weight:600;font-size:12.5px;letter-spacing:.01em;color:var(--accent);margin:0 0 10px;max-width:none}
 
 /* 움직임 */
+/* 부크크명조 (부크크, 상업적 사용 포함 무료). 본문 Light 와 조문 제목 Bold 두 벌만 쓴다.
+   unicode-range 로 쪼개져 있지 않아 한 벌이 크다 — 그래서 .art 안에서만 쓰고, 조문이 없는 화면은
+   이 서체를 아예 요청하지 않는다. 받는 동안에는 swap 으로 Noto Serif KR 이 먼저 글을 띄운다. */
+@font-face{font-family:'Bookk Myungjo';font-style:normal;font-weight:400;font-display:swap;
+  src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2302@1.0/BookkMyungjo-Lt.woff2') format('woff2')}
+@font-face{font-family:'Bookk Myungjo';font-style:normal;font-weight:700;font-display:swap;
+  src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2302@1.0/BookkMyungjo-Bd.woff2') format('woff2')}
+
 @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 @keyframes fade{from{opacity:0}to{opacity:1}}
 .in{animation:rise .6s var(--ease) both;animation-delay:calc(min(var(--i,0),14)*55ms)}
@@ -277,6 +289,11 @@ a.doc{display:block;text-decoration:none;color:inherit}
 .art-title{font-size:17px;margin:0 0 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 @media(max-width:640px){.art{grid-template-columns:1fr;gap:6px;padding:18px}.cite{text-align:left;padding:0}}
 .text{white-space:pre-wrap;font:inherit;margin:0;max-width:40em}
+/* 보존한 약관 본문만 부크크명조로 읽는다 — 인쇄물용 명조라 조문을 길게 볼 때 눈이 덜 피로하다.
+   조문이 실제로 있는 화면(문서·버전·변경)에서만 서체를 내려받는다. 홈 카드의 .mini .text 는 제외라
+   첫 화면은 지금처럼 Pretendard 만으로 뜬다. 명조는 획이 얇아 본문을 반 급 키우고 행간을 넓힌다. */
+.art .text{font-family:var(--doc);font-weight:400;font-size:17px;line-height:1.85;letter-spacing:.01em}
+.art .art-title{font-family:var(--doc);font-weight:700;letter-spacing:-.01em}
 ins{background:var(--ins);color:var(--ins-ink);text-decoration:none;padding:1px 2px;border-radius:3px;-webkit-box-decoration-break:clone;box-decoration-break:clone}
 del{background:var(--del);color:var(--del-ink);text-decoration-thickness:1px;padding:1px 2px;border-radius:3px;-webkit-box-decoration-break:clone;box-decoration-break:clone}
 .mini ins,.mini del{background-color:transparent;background-repeat:no-repeat;background-size:0 100%;animation:sweep .5s var(--ease) forwards}

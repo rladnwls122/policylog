@@ -82,6 +82,20 @@ export const getVersion = (env: Env, id: string) =>
 export const latestVersion = (env: Env, documentId: string) =>
   dbOf(env).first<VersionRow>(`SELECT * FROM versions WHERE document_id = ? ORDER BY COALESCE(effective_at, substr(observed_at,1,10)) DESC, observed_at DESC LIMIT 1`, [documentId])
 
+/** 게이트가 직전 버전에서 쓰는 것. 본문 전체가 아니라 길이와 앞부분 표본만 받는다. */
+export interface VersionGate { id: string; effective_at: string | null; normalization_profile_id: string; len: number; head: string }
+
+/**
+ * 게이트 판정용 직전 버전. `SELECT *` 로 본문을 통째로 끌어오면 문서 하나에 5만 자, 크론 한 번에 수십만 자가
+ * 연결을 타고 넘어온다. 게이트에 필요한 것은 길이와 한글 비율뿐이다.
+ * 한글 비율은 앞 4,000자 표본으로 잰다 — 게이트가 잡으려는 것은 본문이 통째로 사라진 응답이라 표본으로 충분하다.
+ * 실제로 diff 를 만들 때는 그때 전체 행을 읽는다 (acquire.ts 의 poll).
+ */
+export const latestVersionGate = (env: Env, documentId: string) =>
+  dbOf(env).first<VersionGate>(`SELECT id, effective_at, normalization_profile_id,
+      length(normalized_text) AS len, substr(normalized_text, 1, 4000) AS head
+    FROM versions WHERE document_id = ? ORDER BY COALESCE(effective_at, substr(observed_at,1,10)) DESC, observed_at DESC LIMIT 1`, [documentId])
+
 export const findVersionByHash = (env: Env, documentId: string, profile: string, hash: string) =>
   dbOf(env).first<{ id: string }>('SELECT id FROM versions WHERE document_id = ? AND normalization_profile_id = ? AND content_hash = ?', [documentId, profile, hash])
 

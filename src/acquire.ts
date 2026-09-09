@@ -6,7 +6,7 @@ import { DOCUMENTS, robotsEnforced, isCollectible, fetchModeOf, type DocumentCon
 import { extract, type TableBlock } from './extract'
 import { normalize, sha256, gate, extractDates, sectionsOf, yyyymmdd, hangulRatio, NORMALIZATION_PROFILE, PARSER_VERSION } from './normalize'
 import { diffSections, diffParagraphs, diffTables, summarize } from './diff'
-import { type Env, type VersionRow, type DocumentRow, now, uid, getDocument, getVersion, updateDocument, latestVersion, findVersionByHash, insertVersion, insertChange, changeBetween, storedSourceUrls, getChange } from './db'
+import { type Env, type VersionRow, type DocumentRow, now, uid, getDocument, getVersion, updateDocument, latestVersionGate, type VersionGate, findVersionByHash, insertVersion, insertChange, changeBetween, storedSourceUrls, getChange } from './db'
 import { notifyChange } from './notify'
 import { dbOf } from './sql'
 
@@ -182,7 +182,7 @@ export async function harvest(env: Env, doc: DocumentConfig): Promise<Historical
 export interface CaptureResult { created: boolean; versionId?: string; reason?: string; hash?: string }
 
 // docRow·prev 는 부르는 쪽이 이미 읽어 왔으면 넘겨받는다. 안 주면 여기서 읽는다 (백필 경로).
-export async function capture(env: Env, doc: DocumentConfig, opts: { url: string; provenance: 'OFFICIAL_HISTORY' | 'SELF_FETCH'; effectiveAt?: string; versionKey?: string; earliest?: string | null; publishGate?: boolean; docRow?: DocumentRow | null; prev?: VersionRow | null }): Promise<CaptureResult> {
+export async function capture(env: Env, doc: DocumentConfig, opts: { url: string; provenance: 'OFFICIAL_HISTORY' | 'SELF_FETCH'; effectiveAt?: string; versionKey?: string; earliest?: string | null; publishGate?: boolean; docRow?: DocumentRow | null; prev?: VersionGate | null }): Promise<CaptureResult> {
   const ex = doc.extraction!
   const observedAt = now()
   const { status, html, finalUrl } = await fetchDocument(env, opts.url, fetchModeOf(doc))
@@ -190,8 +190,8 @@ export async function capture(env: Env, doc: DocumentConfig, opts: { url: string
 
   const extracted = await extract(html, ex.selector, ex.ignore)
   const text = normalize(extracted.text)
-  const prev = opts.prev !== undefined ? opts.prev : await latestVersion(env, doc.id)
-  const g = gate(text, prev ? { length: prev.normalized_text.length, hangulRatio: hangulRatio(prev.normalized_text) } : undefined)
+  const prev = opts.prev !== undefined ? opts.prev : await latestVersionGate(env, doc.id)
+  const g = gate(text, prev ? { length: prev.len, hangulRatio: hangulRatio(prev.head) } : undefined)
   if (!g.ok) return { created: false, reason: g.reason }
 
   const hash = await sha256(text)
@@ -279,14 +279,15 @@ export async function poll(env: Env, docId: string) {
   const doc = DOCUMENTS.find((d) => d.id === docId)
   if (!doc || !isCollectible(env, doc)) return { skipped: 'NOT_ACTIVE' }
   // 문서 행과 직전 버전은 서로 다른 표라 함께 던진다. 레인이 여럿이라 실제로 겹쳐 돈다 (src/sql.ts).
-  const [row, prev] = await Promise.all([getDocument(env, docId), latestVersion(env, docId)])
+  const [row, prev] = await Promise.all([getDocument(env, docId), latestVersionGate(env, docId)])
   try {
     await ensureAllowed(env, doc, row)
     const r = await capture(env, doc, { url: doc.canonicalUrl, provenance: 'SELF_FETCH', earliest: row?.last_success_at ?? null, publishGate: true, docRow: row, prev })
     await updateDocument(env, docId, { last_checked_at: now(), last_error: r.created || r.reason === 'UNCHANGED' || r.reason === 'PENDING_CONFIRMATION' ? null : r.reason, ...(r.created || r.reason === 'UNCHANGED' ? { last_success_at: now() } : {}) })
     if (r.created && prev) {
-      const to = (await getVersion(env, r.versionId!))!
-      const changeId = await createChange(env, prev, to, null)
+      // 여기서만 두 버전의 본문 전체가 필요하다 — diff 를 만들 때다. 그 전까지는 길이·표본만 들고 다녔다.
+      const [from, to] = (await Promise.all([getVersion(env, prev.id), getVersion(env, r.versionId!)])) as [VersionRow, VersionRow]
+      const changeId = await createChange(env, from, to, null)
       // 알림 실패는 수집 실패가 아니다. 기록은 이미 남았으니 여기서 삼킨다.
       const c = (await getChange(env, changeId))!
       await notifyChange(env, c, to.effective_at, to.observed_at).catch((e) => console.error('notify', docId, String(e)))
