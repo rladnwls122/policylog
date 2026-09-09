@@ -6,6 +6,7 @@
 //   DATABASE_CA=/path/to/ca.pem 을 함께 주면 그 CA 로 서버를 검증한다. 없으면 암호화만 하고 검증하지 않는다 (libpq 의 require 와 같다).
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import pg from 'pg'
 
 const url = process.env.DATABASE_URL
@@ -21,7 +22,7 @@ await client.connect()
 try {
   await client.query('CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)')
   const done = new Set((await client.query('SELECT name FROM schema_migrations')).rows.map((r) => r.name))
-  const dir = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'migrations')
+  const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'migrations')
   const files = (await readdir(dir)).filter((f) => f.endsWith('.sql')).sort()
   for (const f of files) {
     if (done.has(f)) { console.log(`skip   ${f}`); continue }

@@ -6,7 +6,7 @@ import daangnPrev from './fixtures/daangn-privacy-20260327.html?raw'
 import { extract } from '../src/extract'
 import { normalize, sha256, NORMALIZATION_PROFILE, PARSER_VERSION } from '../src/normalize'
 import { byId } from '../src/documents'
-import { syncDocuments, insertVersion, listVersions, latestVersion, findVersionByHash, type Env } from '../src/db'
+import { syncDocuments, insertVersion, listVersions, latestVersion, findVersionByHash, getChange, type Env } from '../src/db'
 import { createChange, rebuildChanges } from '../src/acquire'
 
 const cfg = byId('daangn-privacy')!
@@ -151,5 +151,18 @@ describe('실제 문서로 만든 변경', () => {
     expect((await get(`/policies/${cfg.id}`)).status).toBe(404)
     await get(`/admin/suppress/${cfg.id}`, body('0'))
     expect((await get(`/policies/${cfg.id}`)).status).toBe(200)
+  })
+})
+
+describe('createChange 멱등성', () => {
+  it('같은 (from, to) 를 두 번 만들어도 행은 하나고 같은 id 를 준다', async () => {
+    const [a, b] = await E.DB!.prepare('SELECT * FROM versions WHERE document_id = ? ORDER BY effective_at LIMIT 2').bind(cfg.id).all<any>().then((r) => r.results)
+    const first = await createChange(E, a, b, null)
+    const again = await createChange(E, a, b, null)
+    expect(again).toBe(first)
+    const n = await E.DB!.prepare('SELECT COUNT(*) AS n FROM changes WHERE from_version_id = ? AND to_version_id = ?').bind(a.id, b.id).first<{ n: number }>()
+    expect(n!.n).toBe(1)
+    // 돌려준 id 로 행을 실제로 읽을 수 있어야 한다 — poll 이 이 id 로 알림 메일을 만든다.
+    expect(await getChange(E, again)).not.toBeNull()
   })
 })

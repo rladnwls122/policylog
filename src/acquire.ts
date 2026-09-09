@@ -267,7 +267,9 @@ export async function createChange(env: Env, from: VersionRow, to: VersionRow, s
     sections: JSON.stringify(sections), table_rows: JSON.stringify(tableRows),
     detection_window_start: to.earliest_possible_change_at, detection_window_end: to.observed_at, suppressed_reason: suppressedReason, created_at: now(),
   })
-  return id
+  // insertChange 는 (from, to) 가 이미 있으면 조용히 넘긴다. 그때는 방금 만든 id 가 아니라 살아 있는 행의 id 를 돌려준다 —
+  // 부르는 쪽이 이 id 로 행을 다시 읽기 때문에, 새 id 를 주면 없는 행을 가리킨다.
+  return (await changeBetween(env, from.id, to.id))?.id ?? id
 }
 
 // ── 실시간 폴링 (§47): 현재 본문 캡처, 새 버전이면 변경 발행 ────

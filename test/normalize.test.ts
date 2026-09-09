@@ -85,3 +85,19 @@ describe('yyyymmdd', () => {
     expect(yyyymmdd('20260327')).toBe('2026-03-27')
   })
 })
+
+describe('달력에 없는 날짜 (§69)', () => {
+  it('2월 31일 같은 값은 날짜로 치지 않는다', () => {
+    expect(yyyymmdd('20260231')).toBeNull()
+    expect(yyyymmdd('20261301')).toBeNull()
+    expect(yyyymmdd('20260431')).toBeNull()
+  })
+  it('윤년 2월 29일은 통과한다', () => {
+    expect(yyyymmdd('20240229')).toBe('2024-02-29')
+    expect(yyyymmdd('20260229')).toBeNull()
+  })
+  it('없는 날짜는 시행일로 뽑히지 않는다', () => {
+    expect(extractDates('이 약관은 2026년 2월 31일부터 시행합니다.').effectiveAt).toBeUndefined()
+    expect(extractDates('이 약관은 2026년 2월 28일부터 시행합니다.').effectiveAt).toBe('2026-02-28')
+  })
+})

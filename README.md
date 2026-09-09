@@ -22,7 +22,7 @@ Cloudflare 로 유통하므로 저장소만 빼고 전부 Cloudflare 원시 기�
 
 ## 지금 상태 (2026-09-07 실측)
 
-수집 결과는 아래와 같고, 저장소는 이날 D1 에서 PostgreSQL 로 옮겼다 (아래 "저장소").
+수집 결과는 아래와 같고, 저장소는 PostgreSQL 이다 (아래 "저장소").
 
 로컬 워커를 실제 사이트에 붙여 수집한 결과다. 목업 없음. 문서 79건 중 **수집 중 16, 렌더링 대기 33, 수집 불가 30** 이다.
 
@@ -162,7 +162,7 @@ curl -u admin:devpassword -X POST http://127.0.0.1:8788/admin/run
 ## 테스트
 
 ```bash
-npm test          # 실제 워커 런타임(workerd)에서 97개. 저장소는 miniflare 의 D1 이고 마이그레이션은 운영과 같은 파일이다
+npm test          # 실제 워커 런타임(workerd)에서 139개. 저장소는 miniflare 의 D1 이고 마이그레이션은 운영과 같은 파일이다
 npx tsc --noEmit
 ```
 
@@ -181,7 +181,7 @@ npx wrangler secret put ADMIN_PASSWORD
 npm run deploy
 ```
 
-운영 저장소는 D1 이다. Postgres 로 가려면 `wrangler.jsonc` 의 `d1_databases` 를 `hyperdrive` 바인딩으로 바꾸고(`npx wrangler hyperdrive create policylog --connection-string="$DATABASE_URL"`), `DATABASE_URL=... npm run db:migrate` 로 스키마를 넣는다. Hyperdrive 의 `sslmode=require` 는 CA 를 검증하지 않는다. 검증하려면 `wrangler cert upload ca-cert` 로 CA 를 올리고 `sslmode=verify-full` 로 만든다.
+운영 저장소는 PostgreSQL 이고 `wrangler.jsonc` 의 `hyperdrive` 바인딩으로 붙는다. 스키마는 `DATABASE_URL=... npm run db:migrate` 가 넣는다 — 두 번 돌려도 `skip` 만 찍힌다. D1 로 되돌리려면 그 블록을 `d1_databases` 바인딩 `DB` 로 바꾸면 되고, 같은 마이그레이션이 그대로 들어간다. Hyperdrive 의 `sslmode=require` 는 CA 를 검증하지 않는다. 검증하려면 `wrangler cert upload ca-cert` 로 CA 를 올리고 `sslmode=verify-full` 로 만든다.
 
 Browser Rendering(§85)은 유료 Workers 플랜에서만 붙는다. 무료 플랜이면 `wrangler.jsonc` 의 `browser` 바인딩을 지워도 된다 — 렌더링 필요 문서가 `수집 준비 중` 으로 남을 뿐 나머지는 그대로 돈다.
 
@@ -261,13 +261,9 @@ tools/
 
 ## 다음
 
-- **배포 마무리 (2026-09-10)** — 2026-09-09 에 Cloudflare 로그인, D1 `policylog` 생성(id 는 `wrangler.jsonc`), 마이그레이션 0001~0006 원격 적용까지 끝냈다. 운영 저장소는 Hyperdrive 대신 D1 이다. 남은 순서:
-  1. 대시보드에서 R2 켜기 — `wrangler r2 bucket create` 가 `Please enable R2 through the Cloudflare Dashboard. [code: 10042]` 로 막혔다. https://dash.cloudflare.com/3210770595fe2c51739c7e12c5a6680f/r2 (결제 카드 등록, 무료 한도 10GB).
-  2. `npx wrangler r2 bucket create policylog-raw`
-  3. `npx wrangler secret put ADMIN_PASSWORD`
-  4. `npm run deploy` — 무료 플랜이면 `browser` 바인딩이 거절된다. 그때 `wrangler.jsonc` 에서 `browser` 를 뺀다.
-  5. 배포된 호스트로 `SITE_URL`, `CONTACT_EMAIL`, `USER_AGENT` 를 바꾸고, Google OAuth 리디렉션 URI `https://<호스트>/auth/google/callback` 등록 뒤 `GOOGLE_CLIENT_ID`(vars)·`GOOGLE_CLIENT_SECRET`(secret) 을 넣는다.
-  wrangler 는 Node 22+ 가 필요하다. `nvm use 24.12.0`.
+- **배포 (2026-09-09 완료)** — https://policylog.kryukihide2009.workers.dev 에서 돈다. 저장소는 Aiven PostgreSQL 이고 워커는 Hyperdrive 바인딩으로 붙는다. R2 `policylog-raw`, Browser Rendering 바인딩, 크론 `17 18 * * *` 이 모두 붙어 있다. 카탈로그 79건 중 16건을 수집했고, 같은 실행을 두 번 돌려도 `created: 0`(전부 `UNCHANGED`) 이다.
+  - 남은 것: Google OAuth 리디렉션 URI `https://policylog.kryukihide2009.workers.dev/auth/google/callback` 등록 뒤 `GOOGLE_CLIENT_ID`(vars)·`GOOGLE_CLIENT_SECRET`(secret), 알림 메일용 `RESEND_API_KEY`·`MAIL_FROM`, 그리고 공개용 `CONTACT_EMAIL`.
+  - wrangler 는 Node 22+ 가 필요하다. `nvm use 24.12.0`.
 - 렌더링 셀렉터 실측 — 위 33건. 바인딩을 켜고 `--render` 서베이를 돌린다.
 - 이메일 알림(§78 M2) — 계정 없이 주소만으로 구독. 지금은 RSS 만 있다.
 - 공개 요청(§83) — 403 으로 막힌 19건에 대해 User-Agent 단위 허용 요청. robots 쪽은 §24.4 로 대체됐다.

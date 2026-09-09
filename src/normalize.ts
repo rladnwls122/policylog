@@ -88,10 +88,16 @@ function cueOf(s: string): string {
   return ''
 }
 
+/**
+ * 달력에 실제로 있는 날짜만 통과시킨다. 2월 31일 같은 값은 null 이다 —
+ * 없는 날짜가 effective_at 이 되면 정렬(§72.1)과 D-n 표기가 틀어지고, 반플랩 게이트도 그냥 지나간다.
+ */
 export function toIso(y: string, m: string, d: string): string | null {
   const mm = Number(m), dd = Number(d)
   if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return null
-  return `${y}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`
+  const iso = `${y}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`
+  const t = Date.UTC(Number(y), mm - 1, dd)
+  return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === iso ? iso : null
 }
 
 /** YYYYMMDD → ISO */

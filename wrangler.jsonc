@@ -6,10 +6,10 @@
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
   "triggers": { "crons": ["17 18 * * *"] },
-  // 운영 저장소는 D1 이다 (src/sql.ts 는 DATABASE_URL → DB → HYPERDRIVE 순으로 고른다). Postgres 로 가려면 이 블록을
-  // hyperdrive 바인딩으로 바꾸고 `npx wrangler hyperdrive create policylog --connection-string="$DATABASE_URL"` 의 id 를 넣는다.
-  "d1_databases": [
-    { "binding": "DB", "database_name": "policylog", "database_id": "8e59d778-aa0f-4c19-8d28-6ff9be95647b", "migrations_dir": "migrations" }
+  // 운영 저장소는 Postgres 다 (src/sql.ts 는 DATABASE_URL → DB → HYPERDRIVE 순으로 고른다). 스키마는 `npm run db:migrate` 가 넣는다.
+  // D1 로 되돌리려면 이 블록을 지우고 d1_databases 바인딩 DB 를 넣는다 — 같은 migrations/*.sql 이 두 엔진에 다 들어간다.
+  "hyperdrive": [
+    { "binding": "HYPERDRIVE", "id": "c29f495061b84449a19a9032f9d68376" }
   ],
   "r2_buckets": [
     { "binding": "RAW", "bucket_name": "policylog-raw" }
@@ -18,9 +18,9 @@
   // Local dev needs `wrangler dev --remote`; the binding is unavailable on the Workers free plan.
   "browser": { "binding": "BROWSER" },
   "vars": {
-    "SITE_URL": "https://policylog.example",
+    "SITE_URL": "https://policylog.kryukihide2009.workers.dev",
     "CONTACT_EMAIL": "contact@policylog.example",
-    "USER_AGENT": "POLICYLOG/0.1 (+https://policylog.example/bot; contact@policylog.example)",
+    "USER_AGENT": "POLICYLOG/0.1 (+https://policylog.kryukihide2009.workers.dev/bot; contact@policylog.example)",
     // ENFORCE = skip documents robots.txt disallows. ADVISORY = record the verdict, do not gate on it (S24.4).
     // Both modes keep: one User-Agent, the request-interval caps, and any explicit `User-agent: POLICYLOG` refusal.
     "ROBOTS_MODE": "ADVISORY",
