@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { evaluateRobots, robotsEnforced, isCollectible } from '../src/acquire'
-import { shapeVersion, EXCERPT_CAP, DOCUMENT_SHARE_CAP } from '../src/public'
+import { shapeVersion } from '../src/public'
 import { DOCUMENTS } from '../src/documents'
 import type { VersionRow } from '../src/db'
 
@@ -8,7 +8,7 @@ import type { VersionRow } from '../src/db'
 const SOURCE = Object.entries(import.meta.glob('../src/**/*.{ts,tsx}', { query: '?raw', import: 'default', eager: true }) as Record<string, string>)
 const source = () => SOURCE
 
-describe('D-1: 전체 본문은 공개 표면에 나가지 않는다 (§67.2)', () => {
+describe('공개 표면은 조문 단위로 준다', () => {
   const v: VersionRow = {
     id: 'v1', document_id: 'd', observed_at: '2026-09-07T00:00:00Z', effective_at: '2026-09-01', announced_at: null,
     earliest_possible_change_at: null, lifecycle: 'CURRENT', source_url: 'https://x/', provenance: 'SELF_FETCH',
@@ -17,16 +17,13 @@ describe('D-1: 전체 본문은 공개 표면에 나가지 않는다 (§67.2)', 
   }
   const shaped = shapeVersion(v, [{ identifier: '제1조', title: '목적', content: '가'.repeat(20_000) }])
 
-  it('shapeVersion 은 normalized_text 를 내보내지 않는다', () => {
+  it('normalized_text 통짜 필드는 내보내지 않는다 — 조문으로 쪼개 준다', () => {
     expect(JSON.stringify(shaped)).not.toContain('normalized_text')
-    expect(JSON.stringify(shaped).length).toBeLessThan(v.normalized_text.length)
+    expect(shaped.textLength).toBe(v.normalized_text.length)
   })
-  it('조문 발췌는 800자 상한을 넘지 않는다', () => {
-    for (const s of shaped.sections) expect(s.excerpt.length).toBeLessThanOrEqual(EXCERPT_CAP)
-  })
-  it('한 응답이 문서의 20% 를 넘지 않는다', () => {
-    const total = shaped.sections.reduce((n, s) => n + s.excerpt.length, 0)
-    expect(total).toBeLessThanOrEqual(v.normalized_text.length * DOCUMENT_SHARE_CAP)
+  it('조문 본문은 자르지 않는다', () => {
+    expect(shaped.sections).toHaveLength(1)
+    expect(shaped.sections[0].text).toHaveLength(20_000)
   })
 })
 

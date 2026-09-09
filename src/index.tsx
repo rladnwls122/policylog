@@ -6,7 +6,7 @@ import { type Env, syncDocuments, listDocuments, getDocument, listVersions, getV
   latestChanges, countChanges, weeklyViews, recordView, deleteExpiredSessions, countUsers, type UserRow, type ChangeListRow,
   listWatched, addWatch, removeWatch, watchedChanges, listChanges, findUserByFeedKey, deleteUserSessions, deleteUser, purgeAttempts, updateUser } from './db'
 import { sectionsOf } from './normalize'
-import { shapeVersion, excerpt } from './public'
+import { shapeVersion } from './public'
 import { backfill, poll, runScheduled, rebuildChanges, discover, probe } from './acquire'
 import { rankFeatured, matchDocuments } from './rank'
 import { withDb, dbOf } from './sql'
@@ -334,7 +334,7 @@ app.get('/api/v1/policies/:id/versions/:vid', async (c) => {
 app.get('/api/v1/changes/:id', async (c) => {
   const ch = await getChange(c.env, c.req.param('id'))
   if (!ch || !(await publicDoc(c.env, ch.document_id))) return c.json({ error: 'not found' }, 404)
-  const sections = (JSON.parse(ch.sections) as any[]).map((s) => ({ ...s, beforeText: excerpt(s.beforeText), afterText: excerpt(s.afterText) }))
+  const sections = JSON.parse(ch.sections) as any[]
   return c.json({ ...ch, categories: JSON.parse(ch.categories), sections, tableRows: JSON.parse(ch.table_rows), table_rows: undefined })
 })
 app.get('/api/v1/changes', async (c) => c.json((await recentChanges(c.env, 50)).map(({ sections: _s, table_rows: _t, ...rest }) => ({ ...rest, categories: JSON.parse(rest.categories) }))))

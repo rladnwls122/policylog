@@ -45,7 +45,7 @@ beforeAll(async () => {
   fullText = (await latestVersion(E, cfg.id))!.normalized_text
 })
 
-describe('공개 표면 (D-1)', () => {
+describe('공개 표면', () => {
   it('버전 목록 API 는 본문을 담지 않는다', async () => {
     const res = await get(`/api/v1/policies/${cfg.id}/versions`)
     const body = await res.text()
@@ -55,18 +55,18 @@ describe('공개 표면 (D-1)', () => {
     expect(body.length).toBeLessThan(fullText.length)
   })
 
-  it('버전 상세 API 는 발췌만 준다 — 합계가 전문의 20% 이하', async () => {
+  it('버전 상세 API 는 조문 본문을 자르지 않고 준다', async () => {
     const list = await (await get(`/api/v1/policies/${cfg.id}/versions`)).json<any[]>()
     const res = await get(`/api/v1/policies/${cfg.id}/versions/${list[0].id}`)
     const detail = await res.clone().json<any>()
     expect(await res.text()).not.toContain('normalized_text')
-    const shown = detail.sections.reduce((n: number, x: any) => n + x.excerpt.length, 0)
-    expect(shown).toBeLessThanOrEqual(detail.textLength * 0.2)
+    const shown = detail.sections.reduce((n: number, x: any) => n + x.text.length, 0)
+    expect(shown).toBeGreaterThan(detail.textLength * 0.8)
     expect(detail.sections.length).toBeGreaterThan(5)
   })
 
-  it('어떤 공개 응답도 문서 전문을 담지 않는다', async () => {
-    const tail = fullText.slice(-300)
+  it('수집한 원본 HTML 은 어떤 공개 응답에도 없다', async () => {
+    const tail = '<!DOCTYPE html'
     const list = await (await get(`/api/v1/policies/${cfg.id}/versions`)).json<any[]>()
     const changes = await (await get('/api/v1/changes')).json<any[]>()
     const urls = [
