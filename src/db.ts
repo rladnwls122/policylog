@@ -256,3 +256,58 @@ export const putAttempt = (env: Env, a: AttemptRow) =>
   dbOf(env).run('INSERT INTO login_attempts (key, window_start, n) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET window_start = excluded.window_start, n = excluded.n', [a.key, a.window_start, a.n])
 export const clearAttempts = (env: Env, keys: string[]) => keys.length ? dbOf(env).batch(keys.map((k) => stmt('DELETE FROM login_attempts WHERE key = ?', k))) : Promise.resolve()
 export const purgeAttempts = (env: Env, before: string) => dbOf(env).run('DELETE FROM login_attempts WHERE window_start < ?', [before])
+
+// ── 제보와 조항 평가 (migrations/0007_contrib.sql) ──────────────
+export interface SubmissionRow {
+  id: string; url: string; service_name: string; type: string; note: string | null
+  user_id: string; status: string; review_note: string | null; reviewed_at: string | null; created_at: string
+}
+export interface RatingRow {
+  id: string; document_id: string; identifier: string; category: string; verdict: string; weight: number
+  comment: string | null; user_id: string; status: string; reviewed_at: string | null; created_at: string
+}
+
+/** 제보. 같은 사람이 같은 주소를 두 번 넣으면 조용히 넘어간다 (유니크 인덱스). */
+export const addSubmission = (env: Env, s: Omit<SubmissionRow, 'status' | 'review_note' | 'reviewed_at'>) =>
+  dbOf(env).run(`INSERT INTO submissions (id, url, service_name, type, note, user_id, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
+    [s.id, s.url, s.service_name, s.type, s.note, s.user_id, s.created_at])
+
+export const listSubmissions = (env: Env, status = 'PENDING') =>
+  dbOf(env).all<SubmissionRow>('SELECT * FROM submissions WHERE status = ? ORDER BY created_at', [status])
+
+export const reviewSubmission = (env: Env, id: string, status: 'ACCEPTED' | 'REJECTED', note: string | null, at: string) =>
+  dbOf(env).run('UPDATE submissions SET status = ?, review_note = ?, reviewed_at = ? WHERE id = ?', [status, note, at, id])
+
+export const countSubmissions = (env: Env, status = 'PENDING') =>
+  dbOf(env).first<{ n: number }>('SELECT COUNT(*) AS n FROM submissions WHERE status = ?', [status]).then((r) => r?.n ?? 0)
+
+/** 조항 평가 제안. 한 사람이 같은 조문을 두 번 매기면 조용히 넘어간다. */
+export const addRating = (env: Env, r: Omit<RatingRow, 'status' | 'reviewed_at'>) =>
+  dbOf(env).run(`INSERT INTO ratings (id, document_id, identifier, category, verdict, weight, comment, user_id, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
+    [r.id, r.document_id, r.identifier, r.category, r.verdict, r.weight, r.comment, r.user_id, r.created_at])
+
+/** 공개 화면과 등급에 쓰는 것은 승인된 평가뿐이다. */
+export const approvedRatings = (env: Env, documentId: string) =>
+  dbOf(env).all<RatingRow>("SELECT * FROM ratings WHERE document_id = ? AND status = 'APPROVED' ORDER BY identifier", [documentId])
+
+export const listPendingRatings = (env: Env) =>
+  dbOf(env).all<RatingRow & { service_name: string }>(`SELECT r.*, d.service_name FROM ratings r
+    JOIN documents d ON d.id = r.document_id WHERE r.status = 'PROPOSED' ORDER BY r.created_at`)
+
+export const reviewRating = (env: Env, id: string, status: 'APPROVED' | 'REJECTED', at: string) =>
+  dbOf(env).run('UPDATE ratings SET status = ?, reviewed_at = ? WHERE id = ?', [status, at, id])
+
+export const countPendingRatings = (env: Env) =>
+  dbOf(env).first<{ n: number }>("SELECT COUNT(*) AS n FROM ratings WHERE status = 'PROPOSED'").then((r) => r?.n ?? 0)
+
+/** 문서별 승인 평가를 한 번에. 카드와 목록이 등급을 함께 보일 때 쓴다. */
+export const ratingsByDocument = (env: Env) =>
+  dbOf(env).all<{ document_id: string; identifier: string; category: string; verdict: string; weight: number }>(
+    "SELECT document_id, identifier, category, verdict, weight FROM ratings WHERE status = 'APPROVED'")
+    .then((rows) => {
+      const m = new Map<string, typeof rows>()
+      for (const r of rows) m.set(r.document_id, [...(m.get(r.document_id) ?? []), r])
+      return m
+    })

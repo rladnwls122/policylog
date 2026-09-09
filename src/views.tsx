@@ -2,13 +2,14 @@
 import type { FC, PropsWithChildren } from 'hono/jsx'
 import { raw } from 'hono/html'
 import { diffWords } from 'diff'
-import type { DocumentRow, ChangeListRow, ChangeRow, UserRow } from './db'
+import type { DocumentRow, ChangeListRow, ChangeRow, UserRow, RatingRow, SubmissionRow } from './db'
 import type { ChangeSection, TableRowChange } from './diff'
 import type { PublicSection } from './public'
 import { excerpt, focusOnChange } from './public'
 import { type Signals, type ServiceGroup, orderForGrid, groupByService, searchKey, changeDate, PREVIEW_CARDS } from './rank'
 import { MIN_PASSWORD } from './auth'
 import { LOGOS, CHECK_INTERVAL_DAYS } from './documents'
+import { scoreOf, MIN_RATINGS, VERDICT_LABEL, GRADE_NOTE, type Verdict } from './rate'
 
 // 디자인 체계 — 뉴모피즘(soft UI).
 //
@@ -243,6 +244,27 @@ i.logo{display:grid;place-items:center;font:600 13px var(--mono);font-style:norm
 .mini .text{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap;margin:0}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:20px;align-items:start}
 .card.doc-card{padding:22px;gap:10px}
+/* 조항 평가 (ToS;DR 방식). 등급은 도장이고, 평가 줄은 유리·불리를 색으로만 구분한다. */
+.grade{display:inline-flex;align-items:baseline;gap:8px;padding:8px 14px;border-radius:var(--r-sm);background:var(--well);box-shadow:var(--sink-sm);white-space:nowrap}
+.grade b{font-family:var(--mono);font-size:22px;line-height:1;font-weight:600}
+.grade span{font-size:12px;color:var(--ink-2)}
+.grade.gA b,.grade.gB b{color:var(--ok)}
+.grade.gC b{color:var(--warn)}
+.grade.gD b,.grade.gE b{color:var(--del-ink)}
+.grade.none{color:var(--ink-2);font-size:13px}
+.rates{list-style:none;margin:0;padding:0;display:grid;gap:10px;max-width:none}
+.rates li{display:flex;align-items:flex-start;gap:12px;margin:0;padding:14px 16px;border-radius:var(--r-sm);background:var(--surface);box-shadow:var(--raise-sm);border-left:3px solid var(--ink-3)}
+.rates li.v-good{border-left-color:var(--ok)}
+.rates li.v-bad{border-left-color:var(--del-ink)}
+.rate-id{flex:none;width:6em;color:var(--ink-2);font-size:13px}
+.rate-body{flex:1;min-width:0;font-size:14px;display:grid;gap:4px}
+.rate-note{color:var(--ink-2);font-size:13px}
+.rate-act{flex:none}
+.rate-form{margin-top:18px;display:grid;gap:12px}
+.rate-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.rate-form label{display:grid;gap:6px;font-size:13px;color:var(--ink-2)}
+.rate-form select,.rate-form input{border:0;background:var(--well);box-shadow:var(--sink-sm);border-radius:12px;padding:11px 13px;font:inherit;font-size:14px;color:var(--ink);outline:none}
+.rate-form button{justify-self:start}
 /* 기업 카드. 닫으면 기업 하나, 열면 그 기업의 문서 목록이다 (details — JS 없이 동작한다). */
 .card.svc-card{padding:22px;gap:10px}
 .pick summary{list-style:none;cursor:pointer;display:grid;gap:4px}
@@ -534,7 +556,7 @@ if(q&&grid){
 })();
 `
 
-const NAV: [string, string][] = [['/', '기록'], ['/changes', '변경 기록'], ['/intro', '소개'], ['/bot', '수집 정책'], ['/api/v1/services', 'API']]
+const NAV: [string, string][] = [['/', '기록'], ['/changes', '변경 기록'], ['/contribute', '제보'], ['/intro', '소개'], ['/bot', '수집 정책'], ['/api/v1/services', 'API']]
 
 /** 상단의 회원 자리. 비회원은 로그인·회원가입, 회원은 이름과 로그아웃. */
 const Account: FC<{ user?: UserRow | null }> = ({ user }) => user
@@ -1122,7 +1144,7 @@ export const ChangesPage: FC<{ changes: ChangeListRow[]; cat?: string; imp?: str
   </>
 )
 
-export const DocumentPage: FC<{ d: DocumentRow; versions: { id: string; effective_at: string | null; observed_at: string; provenance: string; source_url: string; text_length: number }[]; changes: ChangeListRow[]; watched: boolean | null }> = ({ d, versions, changes, watched }) => {
+export const DocumentPage: FC<{ d: DocumentRow; versions: { id: string; effective_at: string | null; observed_at: string; provenance: string; source_url: string; text_length: number }[]; changes: ChangeListRow[]; watched: boolean | null; ratings: RatingRow[]; sections: string[]; member: boolean }> = ({ d, versions, changes, watched, ratings, sections, member }) => {
   const byTo = new Map(changes.map((c) => [c.to_version_id, c]))
   const ws = { watched: watched === null ? undefined : new Set(watched ? [d.id] : []) }
   return (
@@ -1162,6 +1184,7 @@ export const DocumentPage: FC<{ d: DocumentRow; versions: { id: string; effectiv
               )
             })}
           </ol>}
+      <Ratings d={d} ratings={ratings} sections={sections} member={member} />
     </>
   )
 }
@@ -1451,5 +1474,142 @@ export const AdminPage: FC<{ docs: DocumentRow[]; counts: Map<string, { n: numbe
         </tr>
       ))}
     </tbody></table></div></div>
+  </>
+)
+
+// ── 조항 평가와 등급 (ToS;DR 방식) ─────────────────────────────
+
+/** 등급 도장. 등급이 없으면(평가가 모자라면) 몇 개가 더 필요한지 적는다 — 빈 배지보다 낫다. */
+export const GradeSeal: FC<{ ratings: Pick<RatingRow, 'verdict' | 'weight'>[] }> = ({ ratings }) => {
+  const { grade, n } = scoreOf(ratings.map((r) => ({ identifier: '', category: '', verdict: r.verdict as Verdict, weight: r.weight })))
+  return grade
+    ? <span class={`grade g${grade}`} title={GRADE_NOTE[grade]}><b>{grade}</b><span>조항 {n}건</span></span>
+    : <span class="grade none">평가 {n}/{MIN_RATINGS}건</span>
+}
+
+/**
+ * 조항 평가 구역. 승인된 것만 보이고, 회원은 조문 하나를 골라 유리·불리와 무게를 낸다.
+ * 낸 것은 바로 보이지 않는다 — 관리자가 승인해야 등급에 들어간다. 그래야 한 사람이 등급을 흔들지 못한다.
+ */
+const Ratings: FC<{ d: DocumentRow; ratings: RatingRow[]; sections: string[]; member: boolean }> = ({ d, ratings, sections, member }) => (
+  <>
+    <div class="sec">
+      <div><h2 id="rate">조항 평가</h2>
+        <p>이용자에게 유리한 조항과 불리한 조항을 사람이 판정하고, 그 합으로 등급을 매깁니다. 승인된 평가만 보입니다.</p></div>
+      <GradeSeal ratings={ratings} />
+    </div>
+    {ratings.length === 0
+      ? <p class="note">아직 승인된 평가가 없습니다. {member ? '아래에서 첫 평가를 낼 수 있습니다.' : '로그인하면 평가를 낼 수 있습니다.'}</p>
+      : <ul class="rates">
+          {ratings.map((r) => (
+            <li class={`v-${r.verdict.toLowerCase()}`}>
+              <span class="rate-id num">{r.identifier}</span>
+              <span class="rate-body">
+                <b>{VERDICT_LABEL[r.verdict as Verdict]}</b>
+                <span class="muted"> · {CAT[r.category] ?? r.category} · 무게 {r.weight}</span>
+                {r.comment && <span class="rate-note">{r.comment}</span>}
+              </span>
+            </li>
+          ))}
+        </ul>}
+    {member && sections.length > 0 && (
+      <form class="rate-form card static" method="post" action={`/policies/${d.id}/rate`}>
+        <p class="eyebrow">평가 내기</p>
+        <div class="rate-row">
+          <label>조문
+            <select name="identifier" required>{sections.map((id) => <option value={id}>{id}</option>)}</select>
+          </label>
+          <label>판정
+            <select name="verdict">
+              <option value="BAD">이용자에게 불리</option>
+              <option value="NEUTRAL">중립</option>
+              <option value="GOOD">이용자에게 유리</option>
+            </select>
+          </label>
+          <label>주제
+            <select name="category">{Object.entries(CAT).map(([k, v]) => <option value={k}>{v}</option>)}</select>
+          </label>
+          <label>무게
+            <select name="weight"><option value="1">1 · 참고</option><option value="2">2 · 중요</option><option value="3">3 · 이것만으로 서비스를 고를 만함</option></select>
+          </label>
+        </div>
+        <input type="text" name="comment" maxlength={300} placeholder="왜 그렇게 보는지 한 줄 (선택)" />
+        <button class="btn primary sm" type="submit">평가 내기</button>
+        <p class="small muted">낸 평가는 관리자 승인 뒤에 보입니다. 한 조문에 한 번만 낼 수 있습니다.</p>
+      </form>
+    )}
+  </>
+)
+
+/** 제보 화면. 주소는 후보로만 쌓이고 관리자가 확인한 뒤 카탈로그에 들어간다. */
+export const ContributePage: FC<{ sent: boolean; error?: string }> = ({ sent, error }) => (
+  <>
+    <p class="eyebrow">제보</p>
+    <h1>빠진 약관을 알려주세요</h1>
+    <p class="sub">중소 서비스의 이용약관과 개인정보 처리방침을 찾습니다. 대기업은 이미 여러 곳이 지켜보고 있어 대상이 아닙니다.</p>
+    {sent && <p class="note">받았습니다. 관리자가 주소를 직접 열어 보고 본문을 가져올 수 있는지 확인한 뒤 카탈로그에 넣습니다.</p>}
+    {error === 'url' && <p class="note">https 로 시작하는 주소와 서비스 이름이 필요합니다.</p>}
+    <form class="auth-form card static" method="post" action="/contribute">
+      <label>서비스 이름<input type="text" name="service_name" required maxlength={60} placeholder="예: 텀블벅" /></label>
+      <label>문서 주소<input type="url" name="url" required placeholder="https://…" /></label>
+      <label>문서 종류
+        <select name="type"><option value="TERMS">이용약관</option><option value="PRIVACY">개인정보 처리방침</option></select>
+      </label>
+      <label>남길 말 (선택)<input type="text" name="note" maxlength={500} placeholder="예: 과거 버전 목록이 페이지 아래에 있습니다" /></label>
+      <button class="btn primary" type="submit">제보하기</button>
+    </form>
+    <ul class="rules">
+      <li><b>바로 수집하지 않습니다.</b> 제보한 주소를 크롤러가 즉시 가져가면 이 사이트가 남의 요청을 대신 보내는 통로가 됩니다. 관리자가 직접 확인한 뒤에만 카탈로그에 들어갑니다.</li>
+      <li><b>공개된 문서만 받습니다.</b> 로그인해야 보이는 문서, 회원 전용 페이지는 넣지 않습니다.</li>
+    </ul>
+  </>
+)
+
+/** 관리자 심사 큐. 제보와 조항 평가를 한 화면에서 본다. */
+export const QueuePage: FC<{ subs: SubmissionRow[]; ratings: (RatingRow & { service_name: string })[] }> = ({ subs, ratings }) => (
+  <>
+    <p class="eyebrow">관리</p>
+    <h1>심사 대기</h1>
+    <h2>제보 {subs.length}건</h2>
+    {subs.length === 0 ? <p class="note">대기 중인 제보가 없습니다.</p> : (
+      <ul class="rates">
+        {subs.map((s) => (
+          <li>
+            <span class="rate-body">
+              <b>{s.service_name}</b><span class="muted"> · {TYPE_LABEL[s.type] ?? s.type}</span>
+              <span class="rate-note"><a href={s.url} rel="noopener nofollow">{s.url}</a></span>
+              {s.note && <span class="rate-note">{s.note}</span>}
+              <span class="rate-note"><a href={`/admin/probe?url=${encodeURIComponent(s.url)}`}>probe 로 재보기</a></span>
+            </span>
+            <form method="post" action={`/admin/submissions/${s.id}`} class="rate-act">
+              <input type="hidden" name="ok" value="1" /><button class="btn sm" type="submit">카탈로그 후보로</button>
+            </form>
+            <form method="post" action={`/admin/submissions/${s.id}`} class="rate-act">
+              <input type="hidden" name="ok" value="0" /><button class="btn sm" type="submit">거절</button>
+            </form>
+          </li>
+        ))}
+      </ul>
+    )}
+    <h2>조항 평가 {ratings.length}건</h2>
+    {ratings.length === 0 ? <p class="note">대기 중인 평가가 없습니다.</p> : (
+      <ul class="rates">
+        {ratings.map((r) => (
+          <li class={`v-${r.verdict.toLowerCase()}`}>
+            <span class="rate-id num">{r.identifier}</span>
+            <span class="rate-body">
+              <b>{r.service_name}</b><span class="muted"> · {VERDICT_LABEL[r.verdict as Verdict]} · {CAT[r.category] ?? r.category} · 무게 {r.weight}</span>
+              {r.comment && <span class="rate-note">{r.comment}</span>}
+            </span>
+            <form method="post" action={`/admin/ratings/${r.id}`} class="rate-act">
+              <input type="hidden" name="ok" value="1" /><button class="btn sm" type="submit">승인</button>
+            </form>
+            <form method="post" action={`/admin/ratings/${r.id}`} class="rate-act">
+              <input type="hidden" name="ok" value="0" /><button class="btn sm" type="submit">거절</button>
+            </form>
+          </li>
+        ))}
+      </ul>
+    )}
   </>
 )

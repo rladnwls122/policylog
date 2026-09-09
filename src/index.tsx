@@ -2,9 +2,10 @@ import { Hono, type Context } from 'hono'
 import { basicAuth } from 'hono/basic-auth'
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
 import { DOCUMENTS } from './documents'
-import { type Env, syncDocuments, listDocuments, getDocument, listVersions, getVersion, getChange, listChangesForDocument, recentChanges, versionCounts, updateDocument, now,
+import { type Env, syncDocuments, listDocuments, getDocument, listVersions, getVersion, latestVersion, getChange, listChangesForDocument, recentChanges, versionCounts, updateDocument, now, uid,
   latestChanges, countChanges, weeklyViews, recordView, deleteExpiredSessions, countUsers, type UserRow, type ChangeListRow,
-  listWatched, addWatch, removeWatch, watchedChanges, listChanges, findUserByFeedKey, deleteUserSessions, deleteUser, purgeAttempts, updateUser } from './db'
+  listWatched, addWatch, removeWatch, watchedChanges, listChanges, findUserByFeedKey, deleteUserSessions, deleteUser, purgeAttempts, updateUser,
+  addSubmission, listSubmissions, reviewSubmission, addRating, listPendingRatings, reviewRating, approvedRatings } from './db'
 import { sectionsOf } from './normalize'
 import { shapeVersion } from './public'
 import { backfill, poll, runScheduled, rebuildChanges, discover, probe } from './acquire'
@@ -12,7 +13,8 @@ import { rankFeatured, matchDocuments } from './rank'
 import { withDb, dbOf } from './sql'
 import { SESSION_COOKIE, OAUTH_COOKIE, SESSION_DAYS, userFromToken, createSession, destroySession, joinWithEmail, loginWithEmail,
   googleEnabled, googleAuthUrl, googleExchange, userFromGoogle, randomToken, safeNext, ensureFeedKey } from './auth'
-import { Layout, Home, IntroPage, SearchPage, ChangesPage, DocumentPage, VersionPage, ChangePage, BotPage, NotFoundPage, AdminPage, JoinPage, LoginPage, MePage, CAT, type Theme } from './views'
+import { Layout, Home, IntroPage, SearchPage, ChangesPage, DocumentPage, VersionPage, ChangePage, BotPage, NotFoundPage, AdminPage, JoinPage, LoginPage, MePage, ContributePage, QueuePage, CAT, type Theme } from './views'
+import { isVerdict, parseWeight } from './rate'
 
 type App = { Bindings: Env; Variables: { user: UserRow | null } }
 const app = new Hono<App>()
@@ -132,8 +134,12 @@ app.get('/policies/:id', async (c) => {
   const d = await publicDoc(c.env, c.req.param('id'))
   if (!d) return c.notFound()
   const user = c.get('user')
-  const [versions, changes, watched] = await Promise.all([listVersions(c.env, d.id), listChangesForDocument(c.env, d.id), user ? listWatched(c.env, user.id) : undefined, recordView(c.env, d.id)])
-  return page(c, d.title, <DocumentPage d={d} versions={versions} changes={changes} watched={watched ? watched.has(d.id) : null} />,
+  // 평가 폼의 조문 목록은 현행 버전에서 뽑는다. 없는 조문에는 평가를 못 낸다.
+  const [versions, changes, watched, ratings, current] = await Promise.all([
+    listVersions(c.env, d.id), listChangesForDocument(c.env, d.id), user ? listWatched(c.env, user.id) : undefined,
+    approvedRatings(c.env, d.id), latestVersion(c.env, d.id), recordView(c.env, d.id)])
+  const sections = current ? [...new Set(sectionsOf(current.normalized_text).map((s) => s.identifier))] : []
+  return page(c, d.title, <DocumentPage d={d} versions={versions} changes={changes} watched={watched ? watched.has(d.id) : null} ratings={ratings} sections={sections} member={!!user} />,
     { feed: `/policies/${d.id}/feed.xml`, description: `${d.title}의 보존한 버전 ${versions.length}개와 변경 ${changes.length}건. ${d.service_name}의 ${d.type === 'TERMS' ? '이용약관' : '개인정보 처리방침'} 변경 이력.` })
 })
 
@@ -386,6 +392,68 @@ admin.post('/suppress/:id', async (c) => {
   await updateDocument(c.env, c.req.param('id'), { publication_suppressed: on ? 1 : 0, takedown_at: on ? now() : null })
   return c.json({ id: c.req.param('id'), publication_suppressed: on })
 })
+// ── 제보 (§16.1) ──────────────────────────────────────────────
+// 이용자가 넣은 주소를 크롤러가 바로 가져가지 않는다. 그러면 남이 우리 워커로 아무 데나 요청을 보낼 수 있다.
+// 제보는 후보로만 쌓이고, 관리자가 /admin/probe 로 재보고 셀렉터를 확인한 뒤에 카탈로그(src/documents.ts)로 간다.
+app.get('/contribute', (c) => {
+  const gate = requireMember(c)
+  if (gate) return gate
+  return page(c, '제보하기', <ContributePage sent={c.req.query('sent') === '1'} error={c.req.query('error') ?? undefined} />, { path: '/contribute', noindex: true })
+})
+app.post('/contribute', async (c) => {
+  if (!sameOrigin(c)) return c.text('forbidden', 403)
+  const gate = requireMember(c)
+  if (gate) return gate
+  const f = await c.req.parseBody()
+  const url = str(f.url).trim()
+  const serviceName = str(f.service_name).trim().slice(0, 60)
+  const type = str(f.type) === 'PRIVACY' ? 'PRIVACY' : 'TERMS'
+  // 주소는 여기서 한 번, 실제로 가져갈 때 acquire.ts 가 다시 본다. 여기 검사는 폼을 되돌려 주기 위한 것이다.
+  let ok = false
+  try { const u = new URL(url); ok = u.protocol === 'https:' && !!serviceName } catch { ok = false }
+  if (!ok) return c.redirect('/contribute?error=url', 302)
+  await addSubmission(c.env, { id: uid(), url, service_name: serviceName, type, note: str(f.note).slice(0, 500) || null, user_id: c.get('user')!.id, created_at: now() })
+  return c.redirect('/contribute?sent=1', 302)
+})
+
+// ── 조항 평가 (ToS;DR 방식) ────────────────────────────────────
+// 회원이 제안하고 관리자가 승인한 것만 공개 화면과 등급에 들어간다 (src/rate.ts).
+app.post('/policies/:id/rate', async (c) => {
+  if (!sameOrigin(c)) return c.text('forbidden', 403)
+  const gate = requireMember(c)
+  if (gate) return gate
+  const d = await publicDoc(c.env, c.req.param('id'))
+  if (!d) return c.notFound()
+  const f = await c.req.parseBody()
+  const verdict = str(f.verdict)
+  const identifier = str(f.identifier).trim().slice(0, 40)
+  if (!isVerdict(verdict) || !identifier) return c.redirect(back(c, `/policies/${d.id}`), 302)
+  await addRating(c.env, {
+    id: uid(), document_id: d.id, identifier, category: str(f.category) in CAT ? str(f.category) : 'OTHER',
+    verdict, weight: parseWeight(str(f.weight)), comment: str(f.comment).slice(0, 300) || null,
+    user_id: c.get('user')!.id, created_at: now(),
+  })
+  return c.redirect(back(c, `/policies/${d.id}`), 302)
+})
+
+// 관리자: 제보와 평가 심사
+admin.get('/queue', async (c) => {
+  const [subs, ratings] = await Promise.all([listSubmissions(c.env), listPendingRatings(c.env)])
+  return c.html(<Layout title="심사 대기" siteUrl={c.env.SITE_URL} theme={themeOf(c as unknown as Context<App>)} here="/admin/queue">
+    <QueuePage subs={subs} ratings={ratings} /></Layout>)
+})
+admin.post('/submissions/:id', async (c) => {
+  const f = await c.req.parseBody()
+  const ok = str(f.ok) === '1'
+  await reviewSubmission(c.env, c.req.param('id'), ok ? 'ACCEPTED' : 'REJECTED', str(f.note).slice(0, 300) || null, now())
+  return c.redirect('/admin/queue', 302)
+})
+admin.post('/ratings/:id', async (c) => {
+  const f = await c.req.parseBody()
+  await reviewRating(c.env, c.req.param('id'), str(f.ok) === '1' ? 'APPROVED' : 'REJECTED', now())
+  return c.redirect('/admin/queue', 302)
+})
+
 app.route('/admin', admin)
 
 app.notFound((c) => page(c, '없는 페이지', <NotFoundPage />, { status: 404 }))
