@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { evaluateRobots, robotsEnforced, isCollectible } from '../src/acquire'
+import { evaluateRobots, robotsEnforced, isCollectible, dueDocuments } from '../src/acquire'
 import { shapeVersion } from '../src/public'
-import { DOCUMENTS } from '../src/documents'
+import { DOCUMENTS, type DocumentConfig } from '../src/documents'
 import type { VersionRow } from '../src/db'
 
 // 소스 전체를 문자열로 읽어 규칙 위반을 찾는다. 번들에 포함되므로 워커 안에서도 동작한다.
@@ -125,5 +125,36 @@ describe('카탈로그 불변식 (§2.7, §19)', () => {
   })
   it('문서 id 는 유일하다', () => {
     expect(new Set(DOCUMENTS.map((d) => d.id)).size).toBe(DOCUMENTS.length)
+  })
+})
+
+describe('조회 주기 (§24.3)', () => {
+  const doc = (id: string): DocumentConfig => ({
+    id, service: id, serviceName: id, type: 'TERMS', title: id,
+    canonicalUrl: `https://${id}.example/terms`, blocker: 'NONE',
+    extraction: { selector: 'main' }, checkedAt: '2026-01-01',
+  })
+  const at = Date.parse('2026-09-09T00:00:00Z')
+  const ago = (days: number) => new Date(at - days * 86_400_000).toISOString()
+
+  it('주기가 안 된 문서는 가져오지 않는다', () => {
+    const docs = [doc('a'), doc('b')]
+    const rows = new Map([['a', ago(10)], ['b', ago(89)]])
+    expect(dueDocuments(docs, rows, at)).toEqual([])
+  })
+  it('한 번도 안 본 문서가 가장 먼저다', () => {
+    const docs = [doc('a'), doc('b')]
+    const rows = new Map<string, string | null>([['a', ago(200)], ['b', null]])
+    expect(dueDocuments(docs, rows, at).map((d) => d.id)).toEqual(['b'])
+  })
+  it('한꺼번에 만기가 돼도 하루 몫만 집는다 — 다음 주기에는 저절로 흩어진다', () => {
+    const docs = Array.from({ length: 180 }, (_, i) => doc(`d${String(i).padStart(3, '0')}`))
+    const rows = new Map(docs.map((d) => [d.id, ago(100)]))
+    expect(dueDocuments(docs, rows, at)).toHaveLength(2)   // 180 / 90
+  })
+  it('오래 안 본 것부터 가져온다', () => {
+    const docs = [doc('a'), doc('b'), doc('c')]
+    const rows = new Map([['a', ago(91)], ['b', ago(400)], ['c', ago(200)]])
+    expect(dueDocuments(docs, rows, at).map((d) => d.id)).toEqual(['b'])
   })
 })

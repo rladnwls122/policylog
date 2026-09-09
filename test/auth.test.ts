@@ -97,7 +97,8 @@ describe('이메일 가입·로그인', () => {
 })
 
 describe('카드 제한', () => {
-  const cards = (html: string) => (html.slice(html.indexOf('id="grid"'), html.indexOf('id="empty"')).match(/class="card doc-card/g) ?? []).length
+  // 그리드의 카드는 기업 하나다. 문서가 하나뿐인 기업은 doc-card, 둘 이상이면 svc-card 로 묶인다.
+  const cards = (html: string) => (html.slice(html.indexOf('id="grid"'), html.indexOf('id="empty"')).match(/class="card (doc|svc)-card/g) ?? []).length
   it(`비회원은 그리드에 ${PREVIEW_CARDS}장과 가입 안내만 본다`, async () => {
     const html = await (await get('/', { headers: { cookie: 'pl_intro=1' } })).text()
     expect(cards(html)).toBe(PREVIEW_CARDS)
@@ -107,8 +108,10 @@ describe('카드 제한', () => {
   it('회원은 전체를 본다', async () => {
     const cookie = sessionOf(await form('/login', { email: 'kim@example.com', password: 'correct-horse' }))!
     const html = await (await get('/', { headers: { cookie } })).text()
-    expect(cards(html)).toBe(DOCUMENTS.length - 3)
     expect(html).not.toContain('건이 더 있습니다')
+    // 묶어도 빠지는 기업은 없어야 한다.
+    for (const name of new Set(DOCUMENTS.map((d) => d.serviceName))) expect(html, name).toContain(name)
+    expect(cards(html)).toBeLessThan(DOCUMENTS.length - 3)
   })
   it('검색 결과도 같은 규칙이다', async () => {
     const html = await (await get('/search?q=' + encodeURIComponent('약관'))).text()

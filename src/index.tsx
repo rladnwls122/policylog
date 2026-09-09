@@ -375,7 +375,7 @@ admin.get('/probe', async (c) => {
   try { return c.json(await probe(c.env, url, sel, mode)) } catch (e) { return c.json({ error: String(e) }, 400) }
 })
 admin.post('/poll/:id', async (c) => { await syncDocuments(c.env); return c.json(await poll(c.env, c.req.param('id'))) })
-admin.post('/run', async (c) => { await syncDocuments(c.env); return c.json(await runScheduled(c.env)) })
+admin.post('/run', async (c) => { await syncDocuments(c.env); return c.json(await runScheduled(c.env, true)) })   // 수동 실행은 차례를 무시하고 전부 본다
 admin.get('/raw/:vid', async (c) => {
   const v = await getVersion(c.env, c.req.param('vid'))
   const obj = v && (await c.env.RAW.get(v.raw_object_key))

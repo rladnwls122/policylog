@@ -2,7 +2,7 @@
 // 회피는 없다 (§2.6). User-Agent 는 env.USER_AGENT 하나뿐이고, 이 파일 밖에서 fetch 를 부르지 않는다.
 // robots 판정을 게이트로 쓸지는 env.ROBOTS_MODE 가 정한다 (§24.4). 판정 자체는 어느 모드에서든 재고 기록한다.
 import puppeteer from '@cloudflare/puppeteer'
-import { DOCUMENTS, robotsEnforced, isCollectible, fetchModeOf, type DocumentConfig } from './documents'
+import { DOCUMENTS, robotsEnforced, isCollectible, fetchModeOf, CHECK_INTERVAL_DAYS, type DocumentConfig } from './documents'
 import { extract, type TableBlock } from './extract'
 import { normalize, sha256, gate, extractDates, sectionsOf, yyyymmdd, hangulRatio, NORMALIZATION_PROFILE, PARSER_VERSION } from './normalize'
 import { diffSections, diffParagraphs, diffTables, summarize } from './diff'
@@ -23,7 +23,7 @@ export type RobotsVerdict = 'ALLOWED' | 'DISALLOWED' | 'UNKNOWN'
 // 수집 여부 판정은 documents.ts 에 있다 (순수 함수라 db.ts 도 같은 규칙을 쓴다).
 // ADVISORY 여도 달라지지 않는 것: User-Agent 는 env.USER_AGENT 하나이고, 접근 간격 상한도 그대로다.
 // 회피 수단(프록시·핑거프린트 조작·캡차)은 모드와 무관하게 코드에 없다 (§2.6).
-export { robotsEnforced, isCollectible, fetchModeOf } from './documents'
+export { robotsEnforced, isCollectible, fetchModeOf, CHECK_INTERVAL_DAYS } from './documents'
 
 export const robotsVerdict = async (env: Env, url: string) => (await robotsCheck(env, url)).verdict
 
@@ -318,12 +318,32 @@ async function ensureAllowed(env: Env, doc: DocumentConfig, row: DocumentRow | n
 }
 
 /** 크론: 활성 문서 전부 폴링. 도메인당 10초 간격 (§24.3). */
-export async function runScheduled(env: Env) {
+/**
+ * 크론 한 번이 가져올 문서를 고른다. 문서 하나는 CHECK_INTERVAL_DAYS 마다 한 번만 본다 (§24.3).
+ * 오래 안 본 것부터 가져오고, 하루 몫만큼만 집는다 — 주기가 끝나 한꺼번에 만기가 되어도 하루에 다 몰리지 않고,
+ * 몇 번 돌고 나면 문서들이 주기 안에 저절로 흩어진다.
+ */
+export function dueDocuments(docs: DocumentConfig[], rows: Map<string, string | null>, at = Date.now()): DocumentConfig[] {
+  const cutoff = at - CHECK_INTERVAL_DAYS * 86_400_000
+  const checked = (d: DocumentConfig) => rows.get(d.id) ?? ''
+  return docs
+    .filter((d) => { const t = checked(d); return !t || Date.parse(t) <= cutoff })
+    .sort((a, b) => checked(a).localeCompare(checked(b)))
+    .slice(0, Math.max(1, Math.ceil(docs.length / CHECK_INTERVAL_DAYS)))
+}
+
+/** 크론: 이번에 볼 차례인 문서만 가져온다. all 이면 차례를 무시하고 전부 본다 (관리 화면의 수동 실행). */
+export async function runScheduled(env: Env, all = false) {
+  const collectible = DOCUMENTS.filter((d) => isCollectible(env, d))
+  const rows = new Map((await dbOf(env).all<{ id: string; last_checked_at: string | null }>(
+    'SELECT id, last_checked_at FROM documents')).map((r) => [r.id, r.last_checked_at]))
+  const todo = all ? collectible : dueDocuments(collectible, rows)
+
   // §24.3 이 약속하는 것은 "같은 도메인에 10초 간격" 이지 "전 세계에 한 번에 하나" 가 아니다.
   // 예전에는 전부 한 줄로 세워서 문서 하나에 10초씩, 20건이면 200초가 넘었다. 호스트별로만 줄을 세우고
   // 호스트끼리는 겹쳐 돌린다 — 어느 서버도 10초에 한 번보다 자주 받지 않는다.
   const byHost = new Map<string, DocumentConfig[]>()
-  for (const doc of DOCUMENTS.filter((d) => isCollectible(env, d))) {
+  for (const doc of todo) {
     const host = new URL(doc.canonicalUrl).host
     byHost.set(host, [...(byHost.get(host) ?? []), doc])
   }

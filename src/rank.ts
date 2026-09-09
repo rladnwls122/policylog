@@ -53,6 +53,26 @@ export function orderForGrid(docs: DocumentRow[], s: Signals): DocumentRow[] {
     a.service_name.localeCompare(b.service_name, 'ko'))
 }
 
+export interface ServiceGroup { service: string; serviceName: string; docs: DocumentRow[] }
+
+/**
+ * 같은 기업의 문서를 한 묶음으로 만든다. 한 기업이 이용약관과 처리방침을 따로 두는 것은 그 기업의 사정이지
+ * 보는 사람의 사정이 아니다 — 찾을 때는 기업 하나로 보이고, 고를 때 문서를 고른다.
+ * 묶음의 자리는 그 안에서 가장 앞선 문서의 자리다 (orderForGrid 를 그대로 따른다).
+ */
+export function groupByService(docs: DocumentRow[], s: Signals): ServiceGroup[] {
+  const out: ServiceGroup[] = []
+  const at = new Map<string, ServiceGroup>()
+  for (const d of orderForGrid(docs, s)) {
+    const g = at.get(d.service)
+    if (g) { g.docs.push(d); continue }
+    const made = { service: d.service, serviceName: d.service_name, docs: [d] }
+    at.set(d.service, made)
+    out.push(made)
+  }
+  return out
+}
+
 const TYPE_WORDS: Record<string, string[]> = {
   TERMS: ['약관', '이용약관', 'terms'],
   PRIVACY: ['개인정보', '처리방침', '개인정보처리방침', 'privacy'],

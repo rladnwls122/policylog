@@ -54,6 +54,13 @@ export type CollectEnv = { ROBOTS_MODE?: 'ENFORCE' | 'ADVISORY'; BROWSER?: unkno
 /** robots 판정을 수집 게이트로 쓸지 (§24.4). 기본은 ENFORCE — 설정을 안 건드리면 동작이 안 바뀐다. */
 export const robotsEnforced = (env: CollectEnv) => (env.ROBOTS_MODE ?? 'ENFORCE') !== 'ADVISORY'
 
+/**
+ * 문서 하나를 다시 보는 주기 (§24.3). 크론은 매일 돌지만 문서는 이 주기마다 한 번만 본다.
+ * 공개 화면과 /bot 의 문구가 이 값을 그대로 읽으므로, 바꾸면 약속도 같이 바뀐다.
+ * 여기 두는 이유는 순환 import 때문이다 — views 가 acquire 를 부르면 notify 를 거쳐 views 로 돌아온다.
+ */
+export const CHECK_INTERVAL_DAYS = 90
+
 export const fetchModeOf = (doc: DocumentConfig) => doc.fetchMode ?? (doc.blocker === 'RENDER_REQUIRED' ? 'RENDER' : 'STATIC')
 
 /**
@@ -250,7 +257,7 @@ const RENDER: [string, string, DocType, string, string?][] = [
 // ROBOTS_MODE=ADVISORY 일 때만 수집된다. ENFORCE 로 되돌리면 자동으로 차단 표시로 돌아간다.
 // 여기 들어가려면 /admin/probe 로 셀렉터를 실측해야 한다 — ROBOTS_BLOCKED 와 달리 추출 설정을 갖는다.
 // robots 판정은 계속 재고 카탈로그에 그대로 보인다. 숨기지 않는다 (§2.7).
-const ROBOTS_NOTE = 'robots.txt 는 이 경로를 비허용하지만, 공개 의무가 있는 문서라 하루 1회 이하로 수집합니다. 거부 요청은 즉시 반영합니다.'
+const ROBOTS_NOTE = 'robots.txt 는 이 경로를 비허용하지만, 공개 의무가 있는 문서라 3개월에 1회 이하로 수집합니다. 거부 요청은 즉시 반영합니다.'
 const ROBOTS_COLLECTED: DocumentConfig[] = [
   {
     id: 'kakao-terms', service: 'kakao', serviceName: '카카오', type: 'TERMS', title: '카카오 이용약관',

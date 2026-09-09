@@ -6,9 +6,9 @@ import type { DocumentRow, ChangeListRow, ChangeRow, UserRow } from './db'
 import type { ChangeSection, TableRowChange } from './diff'
 import type { PublicSection } from './public'
 import { excerpt, focusOnChange } from './public'
-import { type Signals, orderForGrid, searchKey, changeDate, PREVIEW_CARDS } from './rank'
+import { type Signals, type ServiceGroup, orderForGrid, groupByService, searchKey, changeDate, PREVIEW_CARDS } from './rank'
 import { MIN_PASSWORD } from './auth'
-import { LOGOS } from './documents'
+import { LOGOS, CHECK_INTERVAL_DAYS } from './documents'
 
 // 디자인 체계 — 뉴모피즘(soft UI).
 //
@@ -241,8 +241,23 @@ i.logo{display:grid;place-items:center;font:600 13px var(--mono);font-style:norm
 .mini .cite{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--ink-2)}
 .mini .cite b{font-family:var(--display);font-size:13px;color:var(--ink)}
 .mini .text{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap;margin:0}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:20px;align-items:start}
 .card.doc-card{padding:22px;gap:10px}
+/* 기업 카드. 닫으면 기업 하나, 열면 그 기업의 문서 목록이다 (details — JS 없이 동작한다). */
+.card.svc-card{padding:22px;gap:10px}
+.pick summary{list-style:none;cursor:pointer;display:grid;gap:4px}
+.pick summary::-webkit-details-marker{display:none}
+.pick summary .who{font-family:var(--display);font-weight:700;font-size:18px;line-height:1.3;display:flex;align-items:center;gap:10px;min-width:0}
+.pick summary .kind{color:var(--ink-2);font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+/* 접힘 표시는 글자가 아니라 삼각형 하나로. 열면 돈다. */
+.pick summary .kind::after{content:"";display:inline-block;margin-left:8px;border:4px solid transparent;border-top-color:var(--ink-3);transform:translateY(2px);transition:transform .2s var(--ease)}
+.pick[open] summary .kind::after{transform:rotate(180deg) translateY(3px)}
+.picks{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:8px;max-width:none}
+.picks li{display:flex;align-items:center;gap:8px;margin:0;padding:9px 12px;border-radius:var(--r-sm);background:var(--well);box-shadow:var(--sink-sm)}
+.picks .tag{box-shadow:none;padding:0;background:none;flex:none}
+.pick-link{flex:1 1 auto;min-width:0;font-size:14px;font-weight:500;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pick-link:hover{color:var(--accent)}
+
 .card.doc-card .who{font-size:18px}
 .card.blocked{box-shadow:var(--raise-sm)}
 .card.blocked .who,.card.blocked .what{color:var(--ink-2)}
@@ -545,7 +560,8 @@ export function ago(iso: string, at = Date.now()): string {
 const Logo: FC<{ d: Pick<DocumentRow, 'service' | 'service_name'> }> = ({ d }) => LOGOS[d.service]
   ? <img class="logo" src={LOGOS[d.service]} alt="" width={28} height={28} loading="lazy" referrerpolicy="no-referrer" />
   : <i class="logo" aria-hidden="true">{d.service_name.slice(0, 1)}</i>
-const DEFAULT_DESCRIPTION = '한국 서비스의 이용약관과 개인정보 처리방침을 매일 확인해 조문 단위로 변경을 기록하는 공개 아카이브'
+export const CHECK_LABEL = CHECK_INTERVAL_DAYS % 30 === 0 ? `${CHECK_INTERVAL_DAYS / 30}개월마다` : `${CHECK_INTERVAL_DAYS}일마다`
+const DEFAULT_DESCRIPTION = `한국 서비스의 이용약관과 개인정보 처리방침을 ${CHECK_LABEL} 확인해 조문 단위로 변경을 기록하는 공개 아카이브`
 
 /** 켜고 끄는 줄 하나. 폼 하나에 hidden 값 하나 — JS 없이 동작한다. */
 const Switch: FC<{ action: string; name: string; on: boolean; next: string; label: string }> = ({ action, name, on, next, label }) => (
@@ -641,6 +657,8 @@ export const Layout: FC<PropsWithChildren<{ title: string; siteUrl: string; feed
 const BLOCKER_LABEL: Record<string, string> = { ROBOTS: 'robots.txt', WAF: '봇 차단', DOCUMENT_ABSENT: '문서 못 찾음' }
 const CHANGE_LABEL: Record<string, string> = { ADDED: '신설', REMOVED: '삭제', MODIFIED: '수정' }
 const TYPE_LABEL: Record<string, string> = { TERMS: '이용약관', PRIVACY: '개인정보 처리방침' }
+// 좁은 카드에서 문서 종류를 한 줄에 늘어놓을 때 쓴다.
+const TYPE_SHORT: Record<string, string> = { TERMS: '약관', PRIVACY: '처리방침' }
 
 /**
  * robots 비허용인데 수집 중이면 그렇게 적는다. "수집 중" 으로 뭉뚱그리지 않는다 (§2.7).
@@ -650,8 +668,8 @@ const TYPE_LABEL: Record<string, string> = { TERMS: '이용약관', PRIVACY: '�
 export const Badge: FC<{ d: Pick<DocumentRow, 'status' | 'blocker_type' | 'robots_verdict'>; detail?: boolean }> = ({ d, detail }) =>
   d.status === 'ACTIVE' && d.robots_verdict === 'DISALLOWED'
     ? detail ? <span class="tag warn">robots 비허용, 수집 중</span>
-    : <><span class="tag warn detail">robots 비허용, 수집 중</span><span class="tag ok plain">매일 확인</span></>
-  : d.status === 'ACTIVE' ? <span class="tag ok">매일 확인</span>
+    : <><span class="tag warn detail">robots 비허용, 수집 중</span><span class="tag ok plain">{CHECK_LABEL} 확인</span></>
+  : d.status === 'ACTIVE' ? <span class="tag ok">{CHECK_LABEL} 확인</span>
   : d.status === 'PENDING_RENDER' ? <span class="tag warn">수집 준비 중</span>
   : <span class="tag stop">못 가져옴 · {BLOCKER_LABEL[d.blocker_type] ?? d.blocker_type}</span>
 
@@ -814,7 +832,7 @@ const DocCard: FC<{ d: DocumentRow; s: Signals; i: number }> = ({ d, s, i }) => 
       <p class="what">{d.title}</p>
       {c
         ? <div class="chg-line"><Seal effectiveAt={c.effective_at} observedAt={c.observed_at} /><Importance n={c.importance} /><span>{catList(cats(c), 2)}</span></div>
-        : active ? <p class="clamp">기록된 변경 없음 · 매일 지켜보는 중</p>
+        : active ? <p class="clamp">기록된 변경 없음 · {CHECK_LABEL} 지켜보는 중</p>
         : d.public_note ? <p class="clamp">{d.public_note}</p> : null}
       <div class="foot">
         <span class="num">{n ? `버전 ${n.n}개 · ${n.oldest.slice(0, 4)}년부터` : active ? '첫 수집 대기' : '보존 버전 없음'}</span>
@@ -828,7 +846,7 @@ const DocCard: FC<{ d: DocumentRow; s: Signals; i: number }> = ({ d, s, i }) => 
 }
 
 const FEATURES: { title: string; body: string; icon: string }[] = [
-  { title: '매일 확인', icon: 'M12 3a9 9 0 1 0 9 9M12 7v5l3 2M17 3h4v4', body: '카탈로그의 문서를 하루 한 번 가져와 해시로 비교합니다. 바뀐 날짜와 시행일을 함께 남깁니다.' },
+  { title: `${CHECK_LABEL} 확인`, icon: 'M12 3a9 9 0 1 0 9 9M12 7v5l3 2M17 3h4v4', body: `카탈로그의 문서를 ${CHECK_LABEL} 가져와 해시로 비교합니다. 바뀐 날짜와 시행일을 함께 남깁니다.` },
   { title: '조문 단위 비교', icon: 'M4 7h10M4 12h7M4 17h10M18 5v4M16 7h4M16 17h4', body: '어느 조문의 어떤 문장이 지워지고 들어왔는지 붉은 줄과 푸른 줄로 보여줍니다. 국외 이전·제3자 제공·AI 학습처럼 무거운 주제는 중요도로 표시합니다.' },
   { title: '이력 보존', icon: 'M3 5h18v4H3zM5 9v10h14V9M10 13h4', body: '서비스가 공개한 과거 버전까지 거슬러 올라가 보존합니다. 문서마다 RSS 로 구독할 수 있습니다.' },
 ]
@@ -847,7 +865,7 @@ const IntroContent: FC = () => (
       <p class="eyebrow">이용약관 · 개인정보 처리방침 변경 아카이브</p>
       <h1 id="intro-title">약관은 바뀌고,<br />알림은 오지 않습니다.</h1>
       <p class="sub">
-        POLICYLOG 는 한국 서비스의 이용약관과 개인정보 처리방침을 매일 확인해,
+        POLICYLOG 는 한국 서비스의 이용약관과 개인정보 처리방침을 {CHECK_LABEL} 확인해,
         무엇이 어떻게 바뀌었는지 조문 단위로 남기는 공개 아카이브입니다. 계정도, 설치도 필요 없습니다.
       </p>
       <div class="cta">
@@ -885,7 +903,7 @@ const IntroContent: FC = () => (
       <h2 id="rules-title">지키는 원칙</h2>
       <ul class="rules">
         <li><b>공식 문서를 대신하지 않습니다.</b> 보존한 시점의 본문과 그 사이의 변경을 보여주되, 현행 문서는 항상 서비스 공식 페이지로 안내합니다.</li>
-        <li><b>회피하지 않습니다.</b> User-Agent 하나로 하루 한 번 이하 접근하고, 프록시나 캡차 우회를 쓰지 않습니다.</li>
+        <li><b>회피하지 않습니다.</b> User-Agent 하나로 {CHECK_LABEL} 한 번 이하 접근하고, 프록시나 캡차 우회를 쓰지 않습니다.</li>
         <li><b>못 가져오는 문서도 숨기지 않습니다.</b> 사유와 확인한 날짜를 카탈로그에 그대로 적어 둡니다.</li>
       </ul>
       <p class="center" style="margin-top:18px"><a href="/bot">수집 정책 전문 보기</a></p>
@@ -905,6 +923,50 @@ const Splash: FC = () => (
 export const IntroPage: FC = () => <IntroContent />
 
 /** 비회원에게 감춘 카드 대신 서는 한 장. 못 가져오는 문서가 몇 건인지도 숨기지 않는다 (§2.7). */
+/**
+ * 기업 한 곳의 카드. 그 기업의 문서가 둘 이상이면 이 카드가 DocCard 를 대신한다.
+ * 닫혀 있을 때는 기업 하나로 보이고, 열면 그 기업의 문서를 골라 들어간다 — details 라 JS 없이 동작한다.
+ *
+ * 거르기·정렬용 data-* 는 묶음 전체를 대표한다. data-s 는 묶음 안에서 가장 많이 열린 상태다 —
+ * "수집 중" 으로 걸렀는데 한 문서만 수집 중인 기업이 빠지면 그 기업을 못 찾는다. 문서별 상태는 안에서 배지로 보인다.
+ */
+const ServiceCard: FC<{ g: ServiceGroup; s: Signals; i: number }> = ({ g, s, i }) => {
+  const rank = (d: DocumentRow) => (d.status === 'ACTIVE' ? 0 : d.status === 'PENDING_RENDER' ? 1 : 2)
+  const head = [...g.docs].sort((a, b) => rank(a) - rank(b))[0]
+  const latest = g.docs.map((d) => s.latest.get(d.id)).filter(Boolean) as ChangeListRow[]
+  const newest = latest.sort((a, b) => changeDate(b).localeCompare(changeDate(a)))[0]
+  const kept = g.docs.reduce((n, d) => n + (s.counts.get(d.id)?.n ?? 0), 0)
+  const checked = g.docs.map((d) => d.last_success_at).filter(Boolean).sort().at(-1) ?? null
+  return (
+    <article class={`card svc-card in ${statusKey(head)}`} style={`--i:${i}`}
+      data-q={g.docs.map(searchKey).join(' ')} data-s={statusKey(head)} data-d={changeDate(newest)}
+      data-imp={Math.max(-1, ...latest.map((c) => c.importance))} data-n={g.serviceName}>
+      <details class="pick">
+        {/* 닫혀 있어도 무엇이 들어 있는지 보여야 한다 — 회사 이름만 있는 빈 카드는 열어 볼 이유를 안 준다. */}
+        <summary>
+          <span class="who"><Logo d={g.docs[0]} />{g.serviceName}</span>
+          <span class="kind">{g.docs.map((d) => TYPE_SHORT[d.type] ?? d.type).join(' · ')}</span>
+        </summary>
+        <ul class="picks">
+          {g.docs.map((d) => (
+            <li>
+              {d.status === 'ACTIVE'
+                ? <a class="pick-link" href={`/policies/${d.id}`}>{TYPE_LABEL[d.type] ?? d.type}</a>
+                : <a class="pick-link" href={d.canonical_url} rel="noopener nofollow">{TYPE_LABEL[d.type] ?? d.type}</a>}
+              <Badge d={d} />
+              <WatchButton d={d} s={s} />
+            </li>
+          ))}
+        </ul>
+      </details>
+      <div class="foot">
+        <span class="num">{kept ? `버전 ${kept}개` : '첫 수집 대기'}</span>
+        <Checked at={checked} />
+      </div>
+    </article>
+  )
+}
+
 const GateCard: FC<{ hidden: DocumentRow[]; i: number }> = ({ hidden, i }) => {
   const n = (k: string) => hidden.filter((d) => statusKey(d) === k).length
   return (
@@ -923,20 +985,21 @@ export const Home: FC<{ docs: DocumentRow[]; signals: Signals; featured: Documen
   const shut = docs.filter((d) => d.status === 'BLOCKED').length
   const kept = [...s.counts.values()].reduce((n, c) => n + c.n, 0)
   const picked = new Set(featured.map((d) => d.id))
-  const rest = orderForGrid(docs.filter((d) => !picked.has(d.id)), s)
-  const shown = member ? rest : rest.slice(0, PREVIEW_CARDS)
-  const hidden = rest.slice(shown.length)
+  // 상단 세 장에 이미 오른 문서는 빼고, 나머지를 기업 단위로 묶는다. 카드 하나가 기업 하나다.
+  const groups = groupByService(docs.filter((d) => !picked.has(d.id)), s)
+  const shown = member ? groups : groups.slice(0, PREVIEW_CARDS)
+  const hidden = groups.slice(shown.length).flatMap((g) => g.docs)
   return (
     <>
       {showIntro && <Splash />}
       <section class="hero" aria-labelledby="home-title">
         <p class="eyebrow">이용약관 · 개인정보 처리방침 변경 아카이브</p>
         <h1 id="home-title">약관은 바뀌고, 알림은 오지 않습니다.</h1>
-        <p class="sub">한국 서비스의 약관과 처리방침을 매일 확인해 무엇이 어떻게 바뀌었는지 조문 단위로 남깁니다. 서비스 이름으로 바로 찾아보세요.</p>
+        <p class="sub">한국 서비스의 약관과 처리방침을 {CHECK_LABEL} 확인해 무엇이 어떻게 바뀌었는지 조문 단위로 남깁니다. 서비스 이름으로 바로 찾아보세요.</p>
         <SearchBox />
         <p class="hint">Enter 를 누르지 않아도 카드가 바로 걸러집니다.</p>
         <ul class="stats" aria-label="아카이브 현황">
-          <li class="in" style="--i:1"><b>{watched}</b><span>매일 확인하는 문서</span></li>
+          <li class="in" style="--i:1"><b>{watched}</b><span>확인하는 문서</span></li>
           <li class="in" style="--i:2"><b>{kept}</b><span>보존한 버전</span></li>
           <li class="in" style="--i:3"><b>{total}</b><span>기록된 변경</span></li>
           <li class="in" style="--i:4"><b>{shut}</b><span>못 가져오는 문서</span></li>
@@ -965,14 +1028,14 @@ export const Home: FC<{ docs: DocumentRow[]; signals: Signals; featured: Documen
       <section id="all" aria-labelledby="all-title">
         <div class="sec">
           <div><h2 id="all-title">전체 약관 변경 내역</h2>
-            <p>문서 {docs.length}건 가운데 {watched}건을 매일 확인합니다. {soon}건은 준비 중이고, {shut}건은 가져오지 못합니다. 못 가져오는 문서도 사유를 적어 그대로 둡니다.</p></div>
+            <p>문서 {docs.length}건 가운데 {watched}건을 {CHECK_LABEL} 확인합니다. {soon}건은 준비 중이고, {shut}건은 가져오지 못합니다. 못 가져오는 문서도 사유를 적어 그대로 둡니다.</p></div>
           <div class="side">
             <div class="chips js-only" role="group" aria-label="상태로 거르기">
               <button type="button" class="chip on" data-f="all" aria-pressed="true">전체</button>
               <button type="button" class="chip" data-f="active" aria-pressed="false">수집 중</button>
               <button type="button" class="chip" data-f="pending" aria-pressed="false">준비 중</button>
               <button type="button" class="chip" data-f="blocked" aria-pressed="false">못 가져옴</button>
-              <span class="count"><b id="count">{featured.length + shown.length}</b>건</span>
+              <span class="count"><b id="count">{featured.length + shown.length}</b>곳</span>
             </div>
             <div class="chips js-only" role="group" aria-label="정렬">
               <button type="button" class="chip on" data-sort="recent" aria-pressed="true">최근 변경순</button>
@@ -983,7 +1046,7 @@ export const Home: FC<{ docs: DocumentRow[]; signals: Signals; featured: Documen
           </div>
         </div>
         <div id="grid" class="grid">
-          {shown.map((d, i) => <DocCard d={d} s={s} i={i} />)}
+          {shown.map((g, i) => g.docs.length > 1 ? <ServiceCard g={g} s={s} i={i} /> : <DocCard d={g.docs[0]} s={s} i={i} />)}
           {hidden.length > 0 && <GateCard hidden={hidden} i={shown.length} />}
         </div>
         <p id="empty" class="note" hidden>걸리는 문서가 없습니다. 다른 낱말로 찾아보거나, 거르기를 "전체" 로 되돌리세요.</p>
@@ -1210,7 +1273,7 @@ export const BotPage: FC<{ ua: string; contact: string; robotsMode: string }> = 
     <h2>어떻게 수집하나</h2>
     <ul>
       <li>User-Agent 는 항상 <code>{ua}</code> 하나입니다. 브라우저를 흉내내지 않습니다.</li>
-      <li>문서당 하루 1회, 같은 도메인에 10초 이상 간격, 이력 페이지는 5초 간격·하루 30건 이하로 접근합니다. 공개된 약관·처리방침 페이지만 가져옵니다.</li>
+      <li>문서당 {CHECK_LABEL} 1회, 같은 도메인에 10초 이상 간격, 이력 페이지는 5초 간격·하루 30건 이하로 접근합니다. 공개된 약관·처리방침 페이지만 가져옵니다.</li>
       <li>IP 우회·프록시·핑거프린트 조작·캡차 해결·로그인 뒤 콘텐츠 접근은 하지 않습니다.</li>
       <li>보존한 시점의 본문과 변경 이력을 조문 단위로 보여주고, 현행 문서는 항상 공식 페이지로 링크합니다. 수집한 원본 HTML 스냅샷은 공개하지 않습니다.</li>
     </ul>
@@ -1219,7 +1282,7 @@ export const BotPage: FC<{ ua: string; contact: string; robotsMode: string }> = 
       <>
         <p>
           robots.txt 는 매주 다시 확인하고 판정을 카탈로그에 그대로 공개하지만, <strong>지금은 수집 여부를 가르는 기준으로 쓰지 않습니다.</strong>{' '}
-          약관·개인정보 처리방침은 사업자가 공개하도록 정해진 문서이고, 이 아카이브는 그중 변경분만 하루 1회 이하로 확인합니다.
+          약관·개인정보 처리방침은 사업자가 공개하도록 정해진 문서이고, 이 아카이브는 그중 변경분만 {CHECK_LABEL} 1회 이하로 확인합니다.
           대부분의 차단은 이 문서들을 겨냥한 것이 아니라 경로 전체나 <code>User-agent: *</code> 에 걸린 포괄 규칙입니다.
         </p>
         <p>사실대로 적자면: robots.txt 가 비허용인 문서도 수집 중입니다. 문서 페이지에는 <strong>robots 비허용, 수집 중</strong> 으로 늘 적히고, 카드에는 설정의 "수집 상태 자세히" 를 켜면 같은 문구가 보입니다. 판정 자체는 API 에도 그대로 나갑니다.</p>
