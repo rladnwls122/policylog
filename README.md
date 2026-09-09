@@ -133,6 +133,10 @@ node tools/survey.mjs --blocker=WAF
 - 쿼리는 SQLite 와 Postgres 가 함께 읽는 부분집합만 쓴다: `?`/`?N` 자리표시자, `ON CONFLICT DO NOTHING` / `DO UPDATE SET x = excluded.x`, `substr`, `COALESCE`, 윈도 함수. `INSERT OR IGNORE` 같은 엔진별 문법은 없다. 그래서 `migrations/*.sql` 하나가 두 엔진에 그대로 들어간다.
 - `sslmode=require` 는 libpq 의 뜻대로 **암호화만** 한다 (`pg` 기본값은 이를 verify-full 로 다뤄 Aiven 처럼 자체 CA 를 쓰는 서버를 거절한다). 서버를 검증하려면 CA(PEM) 를 `DATABASE_CA` 로 주거나 `sslmode=verify-full` 을 쓴다.
 - 운영은 **Hyperdrive** 를 거친다. 워커에서 직접 TLS 로 자체 서명 CA 서버에 붙는 길은 없고, Hyperdrive 가 연결 풀과 TLS 를 맡는다.
+- **쿼리 왕복 하나가 100ms 대다. 그래서 왕복 수가 곧 응답 시간이다.** CPU 는 병목이 아니다 — 가장 무거운 요청도 1초를 안 쓴다. 세 가지로 줄인다.
+  - 연결을 요청당 4개(레인)까지 열어 `Promise.all` 이 실제로 겹치게 한다. pg 는 연결 하나에 쿼리 하나뿐이라, 레인이 없으면 화면 하나의 쿼리 다섯이 줄을 선다.
+  - 카탈로그 동기화는 여러 행을 한 문장에 담는다. 한 행씩 보내면 79건에 8초가 걸렸다. 묶음은 D1 의 바인딩 100개 상한에 맞춰 8행씩이다.
+  - 이미 읽은 행은 다시 읽지 않는다 — `poll` 이 documents 행을 세 번 읽던 것을 한 번으로.
 
 ```bash
 # 스키마 적용. migrations/*.sql 을 이름순으로 넣고 schema_migrations 에 기록한다. 두 번 돌려도 같다.

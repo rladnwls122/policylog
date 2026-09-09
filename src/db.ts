@@ -32,21 +32,28 @@ export const uid = () => crypto.randomUUID()
 
 /** 설정(코드)의 정적 속성을 DB 에 맞춘다. 런타임 상태 컬럼은 건드리지 않는다. */
 export async function syncDocuments(env: Env, docs: DocumentConfig[] = DOCUMENTS) {
-  const sql = `
+  const sql = (n: number) => `
     INSERT INTO documents (id, service, service_name, type, title, canonical_url, status, acquisition_tier, blocker_type, official_history_url, history_harvester, public_note)
-    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+    VALUES ${Array.from({ length: n }, (_, r) => `(${Array.from({ length: SYNC_COLS }, (_, c) => `?${r * SYNC_COLS + c + 1}`).join(', ')})`).join(', ')}
     ON CONFLICT(id) DO UPDATE SET service=excluded.service, service_name=excluded.service_name, type=excluded.type, title=excluded.title,
       canonical_url=excluded.canonical_url, status=excluded.status, acquisition_tier=excluded.acquisition_tier, blocker_type=excluded.blocker_type,
       official_history_url=excluded.official_history_url, history_harvester=excluded.history_harvester, public_note=excluded.public_note`
-  await dbOf(env).batch(docs.map((d) => {
+  const rows = docs.map((d) => {
     // 상태는 blocker 가 아니라 "지금 설정에서 실제로 수집하는가" 를 따른다.
     // robots 차단이어도 ADVISORY 면 ACTIVE 다 — blocker_type 은 그대로 남아 카탈로그에 사유가 보인다 (§2.7).
     const status = isCollectible(env, d) ? 'ACTIVE' : d.blocker === 'RENDER_REQUIRED' ? 'PENDING_RENDER' : 'BLOCKED'
     const tier = !isCollectible(env, d) ? 'NONE' : d.history ? 'T3' : 'T1'
-    return stmt(sql, d.id, d.service, d.serviceName, d.type, d.title, d.canonicalUrl, status, tier, d.blocker,
-      d.history?.indexUrl ?? null, d.history?.harvester ?? null, d.publicNote ?? null)
-  }))
+    return [d.id, d.service, d.serviceName, d.type, d.title, d.canonicalUrl, status, tier, d.blocker,
+      d.history?.indexUrl ?? null, d.history?.harvester ?? null, d.publicNote ?? null]
+  })
+  // 한 행씩 보내면 문서 수만큼 왕복한다 (79건이면 8초). 여러 행을 한 문장에 담아 왕복을 10분의 1로 줄인다.
+  // 묶음 크기는 D1 의 "한 문장에 바인딩 100개" 상한에 맞춘다 — 8행 × 12열 = 96.
+  const chunks: unknown[][][] = []
+  for (let i = 0; i < rows.length; i += SYNC_CHUNK) chunks.push(rows.slice(i, i + SYNC_CHUNK))
+  await dbOf(env).batch(chunks.map((c) => stmt(sql(c.length), ...c.flat())))
 }
+const SYNC_COLS = 12
+const SYNC_CHUNK = 8
 
 export const listDocuments = (env: Env) =>
   dbOf(env).all<DocumentRow>(`SELECT * FROM documents

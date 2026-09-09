@@ -67,29 +67,38 @@ function d1(db: D1Database): Db {
  * scoped=true 면 연결 하나를 약속(Promise)으로 공유한다 — 한 요청 안의 Promise.all 이 동시에 열어도 하나만 열린다.
  * scoped=false 면 범위 밖에서 불린 것이라 호출마다 열고 닫는다. 느리지만 연결을 흘리지 않는다.
  */
+/** 한 요청이 동시에 여는 연결 수. 화면 하나가 Promise.all 로 던지는 쿼리 수(홈이 5)를 덮는다. */
+const LANES = 4
+
 function pgDb(cfg: pg.ClientConfig, scoped: boolean): Db {
-  let shared: Promise<pg.Client> | null = null
   const connect = async () => { const { Client } = await loadPg(); const c = new Client(cfg); await c.connect(); return c }
-  const acquire = () => (scoped ? (shared ??= connect()) : connect())
-  const release = async (c: pg.Client) => { if (!scoped) await c.end() }
-  // 연결 하나에는 쿼리 하나씩. Promise.all 로 동시에 들어와도 줄을 세운다 — pg 는 겹친 query() 를 9.0 에서 없앤다.
-  let tail: Promise<unknown> = Promise.resolve()
-  const inTurn = <T>(fn: () => Promise<T>): Promise<T> => {
-    const p = tail.then(fn, fn)
-    tail = p.catch(() => {})
+
+  // 연결 하나에는 쿼리 하나씩이라(pg 는 겹친 query() 를 9.0 에서 없앤다), 연결이 하나면 Promise.all 이 줄을 선다.
+  // 쿼리 왕복이 80~150ms 라 그 줄이 곧 응답 시간이다. 그래서 레인을 여러 개 두고 돌아가며 쓴다 —
+  // Hyperdrive 가 원본 연결을 이미 모아 두므로 여기서 더 여는 값은 워커 쪽 소켓뿐이다.
+  // 범위 밖(scoped=false)이면 레인을 만들지 않고 호출마다 열고 닫는다. 느리지만 연결을 흘리지 않는다.
+  type Lane = { client: Promise<pg.Client> | null; tail: Promise<unknown> }
+  const lanes: Lane[] = Array.from({ length: scoped ? LANES : 1 }, () => ({ client: null, tail: Promise.resolve() }))
+  let next = 0
+
+  /** 레인 하나를 잡아 그 안에서 순서대로 돌린다. lane 을 주면 그 레인에 고정한다 (트랜잭션). */
+  const inLane = <T>(fn: (c: pg.Client) => Promise<T>, lane = lanes[next++ % lanes.length]): Promise<T> => {
+    const run = async () => {
+      const c = await (scoped ? (lane.client ??= connect()) : connect())
+      try { return await fn(c) } finally { if (!scoped) await c.end() }
+    }
+    const p = lane.tail.then(run, run)
+    lane.tail = p.catch(() => {})
     return p
   }
-  const q = <T>(s: string, p: unknown[]): Promise<T[]> => inTurn(async () => {
-    const c = await acquire()
-    try { return (await c.query(toPg(s), p as any[])).rows as T[] } finally { await release(c) }
-  })
+
+  const q = <T>(s: string, p: unknown[]): Promise<T[]> => inLane(async (c) => (await c.query(toPg(s), p as any[])).rows as T[])
   return {
     all: q,
     first: async (s, p = []) => (await q<any>(s, p))[0] ?? null,
     run: async (s, p = []) => { await q(s, p) },
-    batch: (ss) => inTurn(async () => {
-      if (!ss.length) return
-      const c = await acquire()
+    // 트랜잭션은 한 연결 안에서 끊기지 않아야 한다. 레인 0 에 고정하면 그 레인의 줄이 순서를 지켜 준다.
+    batch: (ss) => ss.length === 0 ? Promise.resolve() : inLane(async (c) => {
       try {
         await c.query('BEGIN')
         for (const x of ss) await c.query(toPg(x.sql), x.params as any[])
@@ -97,13 +106,16 @@ function pgDb(cfg: pg.ClientConfig, scoped: boolean): Db {
       } catch (e) {
         await c.query('ROLLBACK').catch(() => {})
         throw e
-      } finally { await release(c) }
-    }),
+      }
+    }, lanes[0]),
     close: async () => {
-      const p = shared
-      shared = null
-      const c = p && (await p.catch(() => null))
-      if (c) await c.end()
+      await Promise.all(lanes.map(async (l) => {
+        await l.tail.catch(() => {})   // 아직 도는 쿼리 위에서 소켓을 닫지 않는다
+        const p = l.client
+        l.client = null
+        const c = p && (await p.catch(() => null))
+        if (c) await c.end()
+      }))
     },
   }
 }

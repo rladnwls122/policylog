@@ -6,11 +6,12 @@ import { DOCUMENTS, robotsEnforced, isCollectible, fetchModeOf, type DocumentCon
 import { extract, type TableBlock } from './extract'
 import { normalize, sha256, gate, extractDates, sectionsOf, yyyymmdd, hangulRatio, NORMALIZATION_PROFILE, PARSER_VERSION } from './normalize'
 import { diffSections, diffParagraphs, diffTables, summarize } from './diff'
-import { type Env, type VersionRow, now, uid, getDocument, getVersion, updateDocument, latestVersion, findVersionByHash, insertVersion, insertChange, changeBetween, storedSourceUrls, getChange } from './db'
+import { type Env, type VersionRow, type DocumentRow, now, uid, getDocument, getVersion, updateDocument, latestVersion, findVersionByHash, insertVersion, insertChange, changeBetween, storedSourceUrls, getChange } from './db'
 import { notifyChange } from './notify'
 import { dbOf } from './sql'
 
 export const HISTORY_INTERVAL_MS = 5_000       // §71.4
+export const SAME_HOST_INTERVAL_MS = 10_000    // §24.3
 export const HISTORY_DAILY_CAP = 30            // §71.4
 const ROBOTS_TTL_MS = 7 * 24 * 3600_000        // §24.1 주 1회
 const MAX_BODY = 5 * 1024 * 1024
@@ -180,7 +181,8 @@ export async function harvest(env: Env, doc: DocumentConfig): Promise<Historical
 // ── 한 번의 캡처 ─────────────────────────────────────────────
 export interface CaptureResult { created: boolean; versionId?: string; reason?: string; hash?: string }
 
-export async function capture(env: Env, doc: DocumentConfig, opts: { url: string; provenance: 'OFFICIAL_HISTORY' | 'SELF_FETCH'; effectiveAt?: string; versionKey?: string; earliest?: string | null; publishGate?: boolean }): Promise<CaptureResult> {
+// docRow·prev 는 부르는 쪽이 이미 읽어 왔으면 넘겨받는다. 안 주면 여기서 읽는다 (백필 경로).
+export async function capture(env: Env, doc: DocumentConfig, opts: { url: string; provenance: 'OFFICIAL_HISTORY' | 'SELF_FETCH'; effectiveAt?: string; versionKey?: string; earliest?: string | null; publishGate?: boolean; docRow?: DocumentRow | null; prev?: VersionRow | null }): Promise<CaptureResult> {
   const ex = doc.extraction!
   const observedAt = now()
   const { status, html, finalUrl } = await fetchDocument(env, opts.url, fetchModeOf(doc))
@@ -188,7 +190,7 @@ export async function capture(env: Env, doc: DocumentConfig, opts: { url: string
 
   const extracted = await extract(html, ex.selector, ex.ignore)
   const text = normalize(extracted.text)
-  const prev = await latestVersion(env, doc.id)
+  const prev = opts.prev !== undefined ? opts.prev : await latestVersion(env, doc.id)
   const g = gate(text, prev ? { length: prev.normalized_text.length, hangulRatio: hangulRatio(prev.normalized_text) } : undefined)
   if (!g.ok) return { created: false, reason: g.reason }
 
@@ -200,7 +202,7 @@ export async function capture(env: Env, doc: DocumentConfig, opts: { url: string
   const dates = extractDates(text, { leadingDate: ex.leadingDate })
   const effectiveAt = opts.effectiveAt ?? dates.effectiveAt ?? null   // T3 라벨 > 본문 추출 (§72.1)
   if (opts.publishGate) {
-    const d = await getDocument(env, doc.id)
+    const d = opts.docRow !== undefined ? opts.docRow : await getDocument(env, doc.id)
     const datedRevision = effectiveAt && effectiveAt !== prev?.effective_at
     if (d?.pending_hash !== hash && !datedRevision) {
       await updateDocument(env, doc.id, { pending_hash: hash })
@@ -229,7 +231,7 @@ export async function capture(env: Env, doc: DocumentConfig, opts: { url: string
 export async function backfill(env: Env, docId: string, cap = HISTORY_DAILY_CAP, sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))) {
   const doc = DOCUMENTS.find((d) => d.id === docId)
   if (!doc?.history || !isCollectible(env, doc)) throw new Error('NOT_HARVESTABLE')
-  await ensureAllowed(env, doc)
+  await ensureAllowed(env, doc, await getDocument(env, docId))
   const refs = await harvest(env, doc)
   const stored = await storedSourceUrls(env, docId)
   const todo = refs.filter((r) => !stored.has(r.url)).slice(0, cap)
@@ -276,11 +278,11 @@ export async function createChange(env: Env, from: VersionRow, to: VersionRow, s
 export async function poll(env: Env, docId: string) {
   const doc = DOCUMENTS.find((d) => d.id === docId)
   if (!doc || !isCollectible(env, doc)) return { skipped: 'NOT_ACTIVE' }
-  const row = await getDocument(env, docId)
+  // 문서 행과 직전 버전은 서로 다른 표라 함께 던진다. 레인이 여럿이라 실제로 겹쳐 돈다 (src/sql.ts).
+  const [row, prev] = await Promise.all([getDocument(env, docId), latestVersion(env, docId)])
   try {
-    await ensureAllowed(env, doc)
-    const prev = await latestVersion(env, docId)
-    const r = await capture(env, doc, { url: doc.canonicalUrl, provenance: 'SELF_FETCH', earliest: row?.last_success_at ?? null, publishGate: true })
+    await ensureAllowed(env, doc, row)
+    const r = await capture(env, doc, { url: doc.canonicalUrl, provenance: 'SELF_FETCH', earliest: row?.last_success_at ?? null, publishGate: true, docRow: row, prev })
     await updateDocument(env, docId, { last_checked_at: now(), last_error: r.created || r.reason === 'UNCHANGED' || r.reason === 'PENDING_CONFIRMATION' ? null : r.reason, ...(r.created || r.reason === 'UNCHANGED' ? { last_success_at: now() } : {}) })
     if (r.created && prev) {
       const to = (await getVersion(env, r.versionId!))!
@@ -296,8 +298,8 @@ export async function poll(env: Env, docId: string) {
   }
 }
 
-async function ensureAllowed(env: Env, doc: DocumentConfig) {
-  const row = await getDocument(env, doc.id)
+/** row 는 부르는 쪽이 이미 읽어 둔 documents 행이다. 여기서 다시 읽지 않는다 — 쿼리 왕복 하나가 100ms 대다. */
+async function ensureAllowed(env: Env, doc: DocumentConfig, row: DocumentRow | null) {
   const stale = !row?.robots_checked_at || Date.now() - Date.parse(row.robots_checked_at) > ROBOTS_TTL_MS
   let verdict = row?.robots_verdict as RobotsVerdict | undefined
   let named = row?.robots_named === 1
@@ -316,14 +318,21 @@ async function ensureAllowed(env: Env, doc: DocumentConfig) {
 
 /** 크론: 활성 문서 전부 폴링. 도메인당 10초 간격 (§24.3). */
 export async function runScheduled(env: Env) {
-  const results: Record<string, unknown> = {}
-  let lastHost = ''
+  // §24.3 이 약속하는 것은 "같은 도메인에 10초 간격" 이지 "전 세계에 한 번에 하나" 가 아니다.
+  // 예전에는 전부 한 줄로 세워서 문서 하나에 10초씩, 20건이면 200초가 넘었다. 호스트별로만 줄을 세우고
+  // 호스트끼리는 겹쳐 돌린다 — 어느 서버도 10초에 한 번보다 자주 받지 않는다.
+  const byHost = new Map<string, DocumentConfig[]>()
   for (const doc of DOCUMENTS.filter((d) => isCollectible(env, d))) {
     const host = new URL(doc.canonicalUrl).host
-    if (host === lastHost) await new Promise((r) => setTimeout(r, 10_000))
-    lastHost = host
-    results[doc.id] = await poll(env, doc.id)
+    byHost.set(host, [...(byHost.get(host) ?? []), doc])
   }
+  const results: Record<string, unknown> = {}
+  await Promise.all([...byHost.values()].map(async (docs) => {
+    for (const [i, doc] of docs.entries()) {
+      if (i) await new Promise((r) => setTimeout(r, SAME_HOST_INTERVAL_MS))
+      results[doc.id] = await poll(env, doc.id)
+    }
+  }))
   return results
 }
 
