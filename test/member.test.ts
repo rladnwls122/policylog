@@ -3,6 +3,7 @@ import { env, SELF } from 'cloudflare:test'
 import { describe, it, expect, beforeAll } from 'vitest'
 import { syncDocuments, insertVersion, findUserByEmail, listChangesForDocument, notifyRecipients, updateDocument, type Env } from '../src/db'
 import { LOGOS } from '../src/documents'
+import { TEST_DOCS } from './fixtures/catalog'
 import { ago, daysUntil } from '../src/views'
 import { rebuildChanges } from '../src/acquire'
 import { ATTEMPT_LIMIT, TOO_MANY } from '../src/auth'
@@ -28,7 +29,7 @@ const T3 = T2 + '\n\n제4조 (환불)\n결제 후 7일 이내에는 전액 환�
 let changes: { id: string; effective_at: string | null }[] = []
 
 beforeAll(async () => {
-  await syncDocuments(E)
+  await syncDocuments(E, TEST_DOCS)
   await insertVersion(E, v('m1', T1, '2026-03-27', '2026-03-27T00:00:00Z'))
   await insertVersion(E, v('m2', T2, '2026-07-07', '2026-07-07T00:00:00Z'))
   await insertVersion(E, v('m3', T3, '2026-08-20', '2026-08-20T00:00:00Z'))

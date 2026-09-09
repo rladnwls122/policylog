@@ -2,6 +2,7 @@ import { env } from 'cloudflare:test'
 import { describe, it, expect } from 'vitest'
 import { toPg, pgConfig, openDb, engineOf, stmt, withDb, dbOf } from '../src/sql'
 import { syncDocuments, recordView, weeklyViews, type Env } from '../src/db'
+import { TEST_DOCS } from './fixtures/catalog'
 
 const E = env as unknown as Env
 
@@ -38,7 +39,7 @@ describe('저장소 어댑터 (src/sql.ts)', () => {
     await withDb(E, async () => { expect(dbOf(E)).toBe(dbOf(E)) })
   })
   it('조회 집계는 (문서, 날짜) 쌍당 정수 하나이고, 두 번 세면 2 다', async () => {
-    await syncDocuments(E)
+    await syncDocuments(E, TEST_DOCS)
     await recordView(E, 'daangn-privacy')
     await recordView(E, 'daangn-privacy')
     expect((await weeklyViews(E)).get('daangn-privacy')).toBe(2)

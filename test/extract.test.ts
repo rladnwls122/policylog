@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { extract } from '../src/extract'
 import { normalize, gate, extractDates, sectionsOf } from '../src/normalize'
-import { byId } from '../src/documents'
+import { testDoc } from './fixtures/catalog'
 
 // 픽스처는 실제 서비스에서 받아온 한국어 정책 HTML 이다 (2026-09-07 수집). 합성 픽스처는 쓰지 않는다 (§53).
 import daangnCurrent from './fixtures/daangn-privacy-current.html?raw'
@@ -20,7 +20,7 @@ const FIXTURES: Record<string, string> = {
 const fx = (n: string) => FIXTURES[n]
 
 describe('당근 개인정보 처리방침 (DIRECTORY_INDEX)', () => {
-  const cfg = byId('daangn-privacy')!.extraction!
+  const cfg = testDoc('daangn-privacy').extraction!
   it('본문을 뽑고 시행일을 읽는다', async () => {
     const e = await extract(fx('daangn-privacy-current.html'), cfg.selector, cfg.ignore)
     const text = normalize(e.text)
@@ -44,7 +44,7 @@ describe('당근 개인정보 처리방침 (DIRECTORY_INDEX)', () => {
 })
 
 describe('토스 이용약관 (LINK_LIST)', () => {
-  const cfg = byId('toss-terms')!.extraction!
+  const cfg = testDoc('toss-terms').extraction!
   it('조문 구조를 인식한다', async () => {
     const e = await extract(fx('toss-terms-current.html'), cfg.selector, cfg.ignore)
     const s = sectionsOf(normalize(e.text))

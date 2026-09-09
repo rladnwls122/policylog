@@ -4,7 +4,7 @@ import { describe, it, expect, beforeAll, afterEach } from 'vitest'
 import { syncDocuments, findUserByEmail, type Env } from '../src/db'
 import { hashPassword, verifyPassword, safeNext, decodeIdToken, googleEnabled } from '../src/auth'
 import { PREVIEW_CARDS } from '../src/rank'
-import { DOCUMENTS } from '../src/documents'
+import { TEST_DOCS } from './fixtures/catalog'
 
 const E = env as unknown as Env
 const BASE = 'https://policylog.test'
@@ -23,7 +23,7 @@ const google: { pending: { status: number; body: string }[]; calls: { url: strin
 const googleReplies = (payload: Record<string, unknown>) => google.pending.push({ status: 200, body: JSON.stringify({ id_token: idToken(payload) }) })
 const googleFails = () => google.pending.push({ status: 400, body: '{"error":"invalid_grant"}' })
 beforeAll(async () => {
-  await syncDocuments(E)
+  await syncDocuments(E, TEST_DOCS)
   globalThis.fetch = (async (url: RequestInfo | URL, init?: RequestInit) => {
     google.calls.push({ url: String(url), body: new URLSearchParams(String(init?.body)) })
     const next = google.pending.shift()
@@ -110,8 +110,8 @@ describe('카드 제한', () => {
     const html = await (await get('/', { headers: { cookie } })).text()
     expect(html).not.toContain('건이 더 있습니다')
     // 묶어도 빠지는 기업은 없어야 한다.
-    for (const name of new Set(DOCUMENTS.map((d) => d.serviceName))) expect(html, name).toContain(name)
-    expect(cards(html)).toBeLessThan(DOCUMENTS.length - 3)
+    for (const name of new Set(TEST_DOCS.map((d) => d.serviceName))) expect(html, name).toContain(name)
+    expect(cards(html)).toBeLessThan(TEST_DOCS.length - 3)
   })
   it('검색 결과도 같은 규칙이다', async () => {
     const html = await (await get('/search?q=' + encodeURIComponent('약관'))).text()

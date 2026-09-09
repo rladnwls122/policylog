@@ -5,11 +5,11 @@ import daangnCurrent from './fixtures/daangn-privacy-current.html?raw'
 import daangnPrev from './fixtures/daangn-privacy-20260327.html?raw'
 import { extract } from '../src/extract'
 import { normalize, sha256, NORMALIZATION_PROFILE, PARSER_VERSION } from '../src/normalize'
-import { byId } from '../src/documents'
+import { TEST_DOCS, testDoc } from './fixtures/catalog'
 import { syncDocuments, insertVersion, listVersions, latestVersion, latestVersionGate, findVersionByHash, getChange, type Env } from '../src/db'
 import { createChange, rebuildChanges } from '../src/acquire'
 
-const cfg = byId('daangn-privacy')!
+const cfg = testDoc('daangn-privacy')
 const E = env as unknown as Env
 const BASE = 'https://policylog.test'
 const AUTH = { authorization: `Basic ${btoa('admin:test')}` }
@@ -38,7 +38,7 @@ async function seed(html: string, effectiveAt: string, observedAt: string) {
 let fullText = ''
 
 beforeAll(async () => {
-  await syncDocuments(E)
+  await syncDocuments(E, TEST_DOCS)
   await seed(daangnPrev, '2026-03-27', '2026-03-27T00:00:00.000Z')
   await seed(daangnCurrent, '2026-07-07', '2026-09-07T00:00:00.000Z')
   await rebuildChanges(E, cfg.id, 'BACKFILL')
@@ -111,8 +111,8 @@ describe('멱등성', () => {
   it('syncDocuments 를 반복해도 카탈로그가 늘지 않는다', async () => {
     const count = async () => (await (await get('/api/v1/services')).json<any[]>()).length
     const before = await count()
-    await syncDocuments(E)
-    await syncDocuments(E)
+    await syncDocuments(E, TEST_DOCS)
+    await syncDocuments(E, TEST_DOCS)
     expect(await count()).toBe(before)
   })
 

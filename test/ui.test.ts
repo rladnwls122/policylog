@@ -2,11 +2,12 @@
 import { env, SELF } from 'cloudflare:test'
 import { describe, it, expect, beforeAll } from 'vitest'
 import { syncDocuments, type Env } from '../src/db'
+import { TEST_DOCS } from './fixtures/catalog'
 
 const BASE = 'https://policylog.test'
 const get = (path: string, init?: RequestInit) => SELF.fetch(BASE + path, init)
 
-beforeAll(() => syncDocuments(env as unknown as Env))
+beforeAll(() => syncDocuments(env as unknown as Env, TEST_DOCS))
 
 describe('메인 화면', () => {
   it('검색창, 이번 주 조회 상위 기업 세 장, 그리드가 있다', async () => {
