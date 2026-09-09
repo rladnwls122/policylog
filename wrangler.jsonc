@@ -19,13 +19,13 @@
   "browser": { "binding": "BROWSER" },
   "vars": {
     "SITE_URL": "https://policylog.kryukihide2009.workers.dev",
-    "CONTACT_EMAIL": "contact@policylog.example",
-    "USER_AGENT": "POLICYLOG/0.1 (+https://policylog.kryukihide2009.workers.dev/bot; contact@policylog.example)",
+    "CONTACT_EMAIL": "kryukihide2009@gmail.com",
+    "USER_AGENT": "POLICYLOG/0.1 (+https://policylog.kryukihide2009.workers.dev/bot; kryukihide2009@gmail.com)",
     // ENFORCE = skip documents robots.txt disallows. ADVISORY = record the verdict, do not gate on it (S24.4).
     // Both modes keep: one User-Agent, the request-interval caps, and any explicit `User-agent: POLICYLOG` refusal.
     "ROBOTS_MODE": "ADVISORY",
     // Google login. Set the OAuth client id here and `wrangler secret put GOOGLE_CLIENT_SECRET`; both empty = email sign-up only.
     // Authorized redirect URI in Google Cloud Console: https://<your host>/auth/google/callback
-    "GOOGLE_CLIENT_ID": ""
+    "GOOGLE_CLIENT_ID": "588833057037-g8iadr22tn10u17a09cal2p0o5hui6q1.apps.googleusercontent.com"
   }
 }
