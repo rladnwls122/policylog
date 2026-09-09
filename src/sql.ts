@@ -69,6 +69,8 @@ function d1(db: D1Database): Db {
  */
 /** 한 요청이 동시에 여는 연결 수. 화면 하나가 Promise.all 로 던지는 쿼리 수(홈이 5)를 덮는다. */
 const LANES = 4
+/** 직렬화 실패로 되돌아온 트랜잭션을 다시 시도하는 횟수 (CockroachDB). */
+const SERIALIZATION_RETRIES = 3
 
 function pgDb(cfg: pg.ClientConfig, scoped: boolean): Db {
   const connect = async () => { const { Client } = await loadPg(); const c = new Client(cfg); await c.connect(); return c }
@@ -98,14 +100,22 @@ function pgDb(cfg: pg.ClientConfig, scoped: boolean): Db {
     first: async (s, p = []) => (await q<any>(s, p))[0] ?? null,
     run: async (s, p = []) => { await q(s, p) },
     // 트랜잭션은 한 연결 안에서 끊기지 않아야 한다. 레인 0 에 고정하면 그 레인의 줄이 순서를 지켜 준다.
+    //
+    // 직렬화 실패(40001)는 오류가 아니라 "다시 하라" 는 답이다. CockroachDB 는 기본이 SERIALIZABLE 이라
+    // 겹친 쓰기에서 이 코드로 트랜잭션을 되돌린다 — 되돌린 트랜잭션은 아무것도 쓰지 않았으므로 그대로 다시 돌리면 된다.
+    // Postgres 는 READ COMMITTED 라 여기까지 오는 일이 거의 없다. 몇 번 시도해도 안 되면 그때는 진짜 오류다.
     batch: (ss) => ss.length === 0 ? Promise.resolve() : inLane(async (c) => {
-      try {
-        await c.query('BEGIN')
-        for (const x of ss) await c.query(toPg(x.sql), x.params as any[])
-        await c.query('COMMIT')
-      } catch (e) {
-        await c.query('ROLLBACK').catch(() => {})
-        throw e
+      for (let attempt = 0; ; attempt++) {
+        try {
+          await c.query('BEGIN')
+          for (const x of ss) await c.query(toPg(x.sql), x.params as any[])
+          await c.query('COMMIT')
+          return
+        } catch (e) {
+          await c.query('ROLLBACK').catch(() => {})
+          if (attempt >= SERIALIZATION_RETRIES || (e as { code?: string }).code !== '40001') throw e
+          await new Promise((r) => setTimeout(r, 50 * (attempt + 1)))
+        }
       }
     }, lanes[0]),
     close: async () => {
