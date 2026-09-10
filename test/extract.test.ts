@@ -33,6 +33,19 @@ describe('당근 개인정보 처리방침 (DIRECTORY_INDEX)', () => {
     expect(e.tables.length).toBeGreaterThan(0)
     expect(e.tables[0].rows[0].length).toBeGreaterThan(1)
   })
+  // 실측 픽스처의 제3자 제공 표는 첫 칸이 rowspan="7" 이다. 이것을 안 펴면 아래 여섯 행의 열이
+  // 통째로 왼쪽으로 밀려서, "제공 목적" 이 "제공받는자" 칸에 들어간 채 저장된다.
+  it('rowspan 으로 병합된 칸을 아래 행까지 채운다', async () => {
+    const e = await extract(fx('daangn-privacy-current.html'), cfg.selector, cfg.ignore)
+    const t = e.tables.find((x) => x.headers[0] === '제공받는자')!
+    expect(t.rows.slice(0, 7).map((r) => r[0])).toEqual(Array(7).fill('(주)당근페이'))
+    expect(new Set(t.rows.map((r) => r.length))).toEqual(new Set([t.headers.length]))
+  })
+  it('한 절에 표가 둘이면 둘 다 나온다', async () => {
+    const e = await extract(fx('daangn-privacy-current.html'), cfg.selector, cfg.ignore)
+    const same = e.tables.filter((x) => x.identifier.startsWith('11 개인정보 자동 수집'))
+    expect(same.map((x) => x.headers[0])).toEqual(['법적근거', '수탁업체'])
+  })
   it('목차 네비게이션은 본문에서 제외된다', async () => {
     const e = await extract(fx('daangn-privacy-current.html'), cfg.selector, cfg.ignore)
     expect(e.text).not.toContain('목차')

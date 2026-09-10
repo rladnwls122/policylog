@@ -90,16 +90,33 @@ export function diffParagraphs(before: string, after: string): ChangeSection[] {
 
 const HIGH_VALUE_TABLE = /위탁|제\s*3\s*자|국외/
 
+/**
+ * 같은 이름이 두 번 나오면 뒤엣것에 #n 을 붙인다 (diffSections 와 같은 방식).
+ * 표 이름은 직전 제목이라 한 절에 표가 둘이면 같아지고, 행 이름은 첫 칸이라 rowspan 으로
+ * 병합된 칸이 아래로 흐르면 같아진다. 그냥 Map 에 넣으면 뒤엣것이 앞엣것을 덮어써 통째로 사라진다.
+ */
+function unique<T>(items: T[], name: (t: T, i: number) => string): Map<string, T> {
+  const seen = new Map<string, number>()
+  const out = new Map<string, T>()
+  for (const [i, t] of items.entries()) {
+    const base = name(t, i)
+    const n = (seen.get(base) ?? 0) + 1
+    seen.set(base, n)
+    out.set(n === 1 ? base : `${base}#${n}`, t)
+  }
+  return out
+}
+
 export function diffTables(before: TableBlock[], after: TableBlock[]): TableRowChange[] {
   const out: TableRowChange[] = []
   const rowKey = (r: string[]) => (r[0] ?? '').replace(/\s+/g, ' ').trim()
   const tableKey = (t: TableBlock, i: number) => t.identifier || t.headers.join('/') || `table#${i}`
-  const bmap = new Map(before.map((t, i) => [tableKey(t, i), t]))
-  const amap = new Map(after.map((t, i) => [tableKey(t, i), t]))
+  const bmap = unique(before, tableKey)
+  const amap = unique(after, tableKey)
   for (const [k, ta] of amap) {
     const tb = bmap.get(k)
-    const prevRows = new Map((tb?.rows ?? []).map((r) => [rowKey(r), r]))
-    const nextRows = new Map(ta.rows.map((r) => [rowKey(r), r]))
+    const prevRows = unique(tb?.rows ?? [], rowKey)
+    const nextRows = unique(ta.rows, rowKey)
     const boost = HIGH_VALUE_TABLE.test(k + ' ' + ta.headers.join(' ')) ? 45 : 0
     for (const [rk, r] of nextRows) {
       const p = prevRows.get(rk)

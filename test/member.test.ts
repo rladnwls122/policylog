@@ -236,3 +236,31 @@ describe('시행 전 변경', () => {
     expect(home).toMatch(/data-d="[^"]*" data-imp="-?\d+" data-n="[^"]+"/)
   })
 })
+
+// 조항 평가는 사람이 낸다. 기계는 "여기를 보라" 까지만 한다 (src/rate.ts).
+describe('조항 자동 점검', () => {
+  it('현행 본문에서 확인이 필요한 조문을 짚고, 등급에는 넣지 않는다', async () => {
+    const html = await (await get(`/policies/${DOC}`)).text()
+    expect(html).toContain('자동 점검')
+    expect(html).toContain('국외 이전')
+    expect(html).toContain('AI 학습 이용')
+    expect(html).toContain('등급에는 들어가지 않고')
+    // 승인된 평가가 없으므로 등급은 없고, 몇 조문이 더 필요한지만 적힌다.
+    expect(html).toContain('평가 0/3조문')
+    expect(html).not.toMatch(/class="grade g[A-E]"/)
+  })
+  it('비회원에게는 판정 버튼이 없다', async () => {
+    const html = await (await get(`/policies/${DOC}`)).text()
+    expect(html).not.toContain('class="flag-act"')
+  })
+  it('회원이 후보에서 바로 평가를 내면 승인 전까지 공개되지 않는다', async () => {
+    const cookie = await login('kim@example.com')
+    const html = await (await get(`/policies/${DOC}`, { headers: { cookie } })).text()
+    expect(html).toContain('class="flag-act"')
+    const res = await form(`/policies/${DOC}/rate`, { identifier: '제3조', category: 'OVERSEAS_TRANSFER', weight: '2', verdict: 'BAD' }, cookie)
+    expect(res.status).toBe(302)
+    const after = await (await get(`/policies/${DOC}`)).text()
+    expect(after).not.toContain('이용자에게 불리</b>')   // PROPOSED 는 공개 화면에 없다
+    expect(after).toContain('평가 0/3조문')
+  })
+})

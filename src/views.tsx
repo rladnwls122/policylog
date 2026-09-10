@@ -9,7 +9,7 @@ import { excerpt, focusOnChange } from './public'
 import { type Signals, type ServiceGroup, orderForGrid, groupByService, searchKey, changeDate, PREVIEW_CARDS } from './rank'
 import { MIN_PASSWORD } from './auth'
 import { LOGOS, CHECK_INTERVAL_DAYS } from './documents'
-import { scoreOf, MIN_RATINGS, VERDICT_LABEL, GRADE_NOTE, type Verdict } from './rate'
+import { scoreOf, MIN_CLAUSES, VERDICT_LABEL, GRADE_NOTE, type Verdict, type Flag } from './rate'
 
 // 디자인 체계 — 뉴모피즘(soft UI).
 //
@@ -260,6 +260,10 @@ i.logo{display:grid;place-items:center;font:600 13px var(--mono);font-style:norm
 .rate-body{flex:1;min-width:0;font-size:14px;display:grid;gap:4px}
 .rate-note{color:var(--ink-2);font-size:13px}
 .rate-act{flex:none}
+.flags{margin-top:22px}
+.rates.flagged li{border-left-style:dashed;border-left-color:var(--warn);background:var(--well);box-shadow:var(--sink-sm)}
+.flag-q{display:block;margin:2px 0 0;font-size:13px;color:var(--ink-2);border-left:2px solid var(--ink-3);padding-left:10px;quotes:none}
+.flag-act{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .rate-form{margin-top:18px;display:grid;gap:12px}
 .rate-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
 .rate-form label{display:grid;gap:6px;font-size:13px;color:var(--ink-2)}
@@ -1144,7 +1148,7 @@ export const ChangesPage: FC<{ changes: ChangeListRow[]; cat?: string; imp?: str
   </>
 )
 
-export const DocumentPage: FC<{ d: DocumentRow; versions: { id: string; effective_at: string | null; observed_at: string; provenance: string; source_url: string; text_length: number }[]; changes: ChangeListRow[]; watched: boolean | null; ratings: RatingRow[]; sections: string[]; member: boolean }> = ({ d, versions, changes, watched, ratings, sections, member }) => {
+export const DocumentPage: FC<{ d: DocumentRow; versions: { id: string; effective_at: string | null; observed_at: string; provenance: string; source_url: string; text_length: number }[]; changes: ChangeListRow[]; watched: boolean | null; ratings: RatingRow[]; sections: string[]; flags: Flag[]; member: boolean }> = ({ d, versions, changes, watched, ratings, sections, flags, member }) => {
   const byTo = new Map(changes.map((c) => [c.to_version_id, c]))
   const ws = { watched: watched === null ? undefined : new Set(watched ? [d.id] : []) }
   return (
@@ -1184,7 +1188,7 @@ export const DocumentPage: FC<{ d: DocumentRow; versions: { id: string; effectiv
               )
             })}
           </ol>}
-      <Ratings d={d} ratings={ratings} sections={sections} member={member} />
+      <Ratings d={d} ratings={ratings} sections={sections} flags={flags} member={member} />
     </>
   )
 }
@@ -1479,19 +1483,22 @@ export const AdminPage: FC<{ docs: DocumentRow[]; counts: Map<string, { n: numbe
 
 // ── 조항 평가와 등급 (ToS;DR 방식) ─────────────────────────────
 
-/** 등급 도장. 등급이 없으면(평가가 모자라면) 몇 개가 더 필요한지 적는다 — 빈 배지보다 낫다. */
-export const GradeSeal: FC<{ ratings: Pick<RatingRow, 'verdict' | 'weight'>[] }> = ({ ratings }) => {
-  const { grade, n } = scoreOf(ratings.map((r) => ({ identifier: '', category: '', verdict: r.verdict as Verdict, weight: r.weight })))
+/** 등급 도장. 등급이 없으면(평가가 모자라면) 몇 조문이 더 필요한지 적는다 — 빈 배지보다 낫다. */
+export const GradeSeal: FC<{ ratings: Pick<RatingRow, 'identifier' | 'verdict' | 'weight'>[] }> = ({ ratings }) => {
+  const { grade, n } = scoreOf(ratings.map((r) => ({ identifier: r.identifier, category: '', verdict: r.verdict as Verdict, weight: r.weight })))
   return grade
-    ? <span class={`grade g${grade}`} title={GRADE_NOTE[grade]}><b>{grade}</b><span>조항 {n}건</span></span>
-    : <span class="grade none">평가 {n}/{MIN_RATINGS}건</span>
+    ? <span class={`grade g${grade}`} title={GRADE_NOTE[grade]}><b>{grade}</b><span>조문 {n}개</span></span>
+    : <span class="grade none">평가 {n}/{MIN_CLAUSES}조문</span>
 }
 
 /**
  * 조항 평가 구역. 승인된 것만 보이고, 회원은 조문 하나를 골라 유리·불리와 무게를 낸다.
  * 낸 것은 바로 보이지 않는다 — 관리자가 승인해야 등급에 들어간다. 그래야 한 사람이 등급을 흔들지 못한다.
+ *
+ * 자동 점검은 등급에 들어가지 않는다. 문서가 아흔 건이고 조문은 문서마다 수십 개라 사람이 어디를 볼지
+ * 모르면 아무 평가도 안 나온다 — 기계는 "여기를 보라" 까지만 하고, 유리·불리는 사람이 정한다.
  */
-const Ratings: FC<{ d: DocumentRow; ratings: RatingRow[]; sections: string[]; member: boolean }> = ({ d, ratings, sections, member }) => (
+const Ratings: FC<{ d: DocumentRow; ratings: RatingRow[]; sections: string[]; flags: Flag[]; member: boolean }> = ({ d, ratings, sections, flags, member }) => (
   <>
     <div class="sec">
       <div><h2 id="rate">조항 평가</h2>
@@ -1499,7 +1506,7 @@ const Ratings: FC<{ d: DocumentRow; ratings: RatingRow[]; sections: string[]; me
       <GradeSeal ratings={ratings} />
     </div>
     {ratings.length === 0
-      ? <p class="note">아직 승인된 평가가 없습니다. {member ? '아래에서 첫 평가를 낼 수 있습니다.' : '로그인하면 평가를 낼 수 있습니다.'}</p>
+      ? <p class="note">아직 승인된 평가가 없습니다. {member ? '아래 자동 점검 후보에서 바로 낼 수 있습니다.' : '로그인하면 평가를 낼 수 있습니다.'}</p>
       : <ul class="rates">
           {ratings.map((r) => (
             <li class={`v-${r.verdict.toLowerCase()}`}>
@@ -1512,6 +1519,40 @@ const Ratings: FC<{ d: DocumentRow; ratings: RatingRow[]; sections: string[]; me
             </li>
           ))}
         </ul>}
+
+    {flags.length > 0 && (
+      <div class="flags">
+        <div class="sec">
+          <div><h3 id="check">자동 점검 {flags.length}건</h3>
+            <p>확인이 필요해 보이는 조문을 규칙으로 짚은 것입니다. <b>등급에는 들어가지 않고</b>, 걸렸다고 위법도 아닙니다 — 자동 갱신이나 국외 이전은 적법하게 고지된 것일 수 있습니다.</p></div>
+        </div>
+        <ul class="rates flagged">
+          {flags.map((f) => (
+            <li>
+              <span class="rate-id num">{f.identifier}</span>
+              <span class="rate-body">
+                <b>{f.rule}</b>
+                <span class="muted"> · {CAT[f.category] ?? f.category}</span>
+                <span class="rate-note">{f.note}</span>
+                <q class="flag-q">{f.excerpt}</q>
+                {member && (
+                  // 판정 버튼이 곧 제출이다. select 하나를 더 고르게 하면 아무도 안 낸다.
+                  <form method="post" action={`/policies/${d.id}/rate`} class="flag-act">
+                    <input type="hidden" name="identifier" value={f.identifier} />
+                    <input type="hidden" name="category" value={f.category} />
+                    <input type="hidden" name="weight" value="2" />
+                    <button class="btn sm" type="submit" name="verdict" value="BAD">불리</button>
+                    <button class="btn sm" type="submit" name="verdict" value="NEUTRAL">중립</button>
+                    <button class="btn sm" type="submit" name="verdict" value="GOOD">유리</button>
+                  </form>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    )}
+
     {member && sections.length > 0 && (
       <form class="rate-form card static" method="post" action={`/policies/${d.id}/rate`}>
         <p class="eyebrow">평가 내기</p>
@@ -1546,7 +1587,7 @@ export const ContributePage: FC<{ sent: boolean; error?: string }> = ({ sent, er
   <>
     <p class="eyebrow">제보</p>
     <h1>빠진 약관을 알려주세요</h1>
-    <p class="sub">중소 서비스의 이용약관과 개인정보 처리방침을 찾습니다. 대기업은 이미 여러 곳이 지켜보고 있어 대상이 아닙니다.</p>
+    <p class="sub">이용약관과 개인정보 처리방침이면 규모를 가리지 않습니다. 대기업은 개정 사실이 기사로 나지만 조문이 어떻게 바뀌었는지는 남지 않고, 중소 서비스는 그마저도 없습니다.</p>
     {sent && <p class="note">받았습니다. 관리자가 주소를 직접 열어 보고 본문을 가져올 수 있는지 확인한 뒤 카탈로그에 넣습니다.</p>}
     {error === 'url' && <p class="note">https 로 시작하는 주소와 서비스 이름이 필요합니다.</p>}
     <form class="auth-form card static" method="post" action="/contribute">

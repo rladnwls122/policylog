@@ -14,7 +14,7 @@ import { withDb, dbOf } from './sql'
 import { SESSION_COOKIE, OAUTH_COOKIE, SESSION_DAYS, userFromToken, createSession, destroySession, joinWithEmail, loginWithEmail,
   googleEnabled, googleAuthUrl, googleExchange, userFromGoogle, randomToken, safeNext, ensureFeedKey } from './auth'
 import { Layout, Home, IntroPage, SearchPage, ChangesPage, DocumentPage, VersionPage, ChangePage, BotPage, NotFoundPage, AdminPage, JoinPage, LoginPage, MePage, ContributePage, QueuePage, CAT, type Theme } from './views'
-import { isVerdict, parseWeight } from './rate'
+import { isVerdict, parseWeight, flagClauses } from './rate'
 
 type App = { Bindings: Env; Variables: { user: UserRow | null } }
 const app = new Hono<App>()
@@ -134,12 +134,15 @@ app.get('/policies/:id', async (c) => {
   const d = await publicDoc(c.env, c.req.param('id'))
   if (!d) return c.notFound()
   const user = c.get('user')
-  // 평가 폼의 조문 목록은 현행 버전에서 뽑는다. 없는 조문에는 평가를 못 낸다.
   const [versions, changes, watched, ratings, current] = await Promise.all([
     listVersions(c.env, d.id), listChangesForDocument(c.env, d.id), user ? listWatched(c.env, user.id) : undefined,
     approvedRatings(c.env, d.id), latestVersion(c.env, d.id), recordView(c.env, d.id)])
-  const sections = current ? [...new Set(sectionsOf(current.normalized_text).map((s) => s.identifier))] : []
-  return page(c, d.title, <DocumentPage d={d} versions={versions} changes={changes} watched={watched ? watched.has(d.id) : null} ratings={ratings} sections={sections} member={!!user} />,
+  // 평가 폼의 조문 목록과 자동 점검 후보는 현행 버전에서 뽑는다. 없는 조문에는 평가를 못 낸다.
+  const parsed = current ? sectionsOf(current.normalized_text) : []
+  const sections = [...new Set(parsed.map((s) => s.identifier))]
+  // 이미 승인된 평가가 있는 조문은 후보에서 뺀다 — 사람이 본 자리를 기계가 또 가리키지 않는다.
+  const flags = flagClauses(parsed, ratings.map((r) => r.identifier))
+  return page(c, d.title, <DocumentPage d={d} versions={versions} changes={changes} watched={watched ? watched.has(d.id) : null} ratings={ratings} sections={sections} flags={flags} member={!!user} />,
     { feed: `/policies/${d.id}/feed.xml`, description: `${d.title}의 보존한 버전 ${versions.length}개와 변경 ${changes.length}건. ${d.service_name}의 ${d.type === 'TERMS' ? '이용약관' : '개인정보 처리방침'} 변경 이력.` })
 })
 

@@ -58,6 +58,24 @@ describe('diffTables (§68.4)', () => {
     const out = diffTables(T([['A사', '이름']]), T([['A사', '이름, 주소']]))
     expect(out[0].changeType).toBe('MODIFIED')
   })
+  // 병합 칸(rowspan)이 아래로 흐르면 첫 칸이 같은 행이 여럿 생긴다. Map 에 그냥 넣으면 뒤엣것이
+  // 앞엣것을 덮어써서, 일곱 줄짜리 위탁 표가 한 줄로 줄어든 채 비교됐다.
+  it('첫 칸이 같은 행 여럿을 하나로 덮어쓰지 않는다', () => {
+    const before = T([['당근페이', '이름'], ['당근페이', '주소'], ['당근페이', '연락처']])
+    expect(diffTables(before, before)).toEqual([])
+    const out = diffTables(before, T([['당근페이', '이름'], ['당근페이', '주소'], ['당근페이', '연락처, 생년월일']]))
+    expect(out).toHaveLength(1)
+    expect(out[0].changeType).toBe('MODIFIED')
+  })
+  it('제목이 같은 표 둘을 하나로 덮어쓰지 않는다', () => {
+    const two = (a: string, b: string) => [
+      { identifier: '11 자동 수집', headers: ['법적근거', '수집 항목'], rows: [['제15조', a]] },
+      { identifier: '11 자동 수집', headers: ['수탁업체', '위탁업무'], rows: [['Google LLC', b]] },
+    ]
+    const out = diffTables(two('검색이력', '지표 분석'), two('검색이력', '지표 분석, 광고 성과'))
+    expect(out).toHaveLength(1)
+    expect(out[0].tableIdentifier).toBe('11 자동 수집#2')
+  })
 })
 
 describe('diffParagraphs 폴백', () => {

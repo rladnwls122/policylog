@@ -274,7 +274,9 @@ export async function createChange(env: Env, from: VersionRow, to: VersionRow, s
   const sa = sectionsOf(from.normalized_text), sb = sectionsOf(to.normalized_text)
   const sections = sa.length && sb.length ? diffSections(sa, sb) : diffParagraphs(from.normalized_text, to.normalized_text)
   const ta: TableBlock[] = JSON.parse(from.metadata).tables ?? [], tb: TableBlock[] = JSON.parse(to.metadata).tables ?? []
-  const tableRows = diffTables(ta, tb)
+  // 표 파싱이 바뀐 판본끼리는 표 행을 비교하지 않는다 (PARSER_VERSION). 병합 칸을 못 읽던 시절의 행은
+  // 열이 밀려 있어서, 실제로 안 바뀐 표가 통째로 바뀐 것처럼 나온다.
+  const tableRows = from.parser_version === to.parser_version ? diffTables(ta, tb) : []
   const { importance, categories } = summarize(sections, tableRows)
   const id = uid()
   await insertChange(env, {

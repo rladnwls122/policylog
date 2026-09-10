@@ -2,7 +2,7 @@
 // NORMALIZATION_PROFILE 은 출력 텍스트가 달라질 수 있는 변경에만 올린다 (§74). 다른 프로필의 해시끼리는 비교하지 않는다.
 
 export const NORMALIZATION_PROFILE = 'v1'
-export const PARSER_VERSION = '0.1.0'
+export const PARSER_VERSION = '0.2.0'   // 0.2.0: 표의 rowspan·colspan 을 펼치고 표 안의 표를 따로 잡는다
 
 export function normalize(raw: string): string {
   return raw
